@@ -47,7 +47,8 @@
     }
 
     /* Rave-Flash bei Treffern */
-    body.rave { animation: rave 0.9s ease; }
+    /* am html-Element: ein filter auf body würde alle fixed-Ebenen beim Scrollen verschieben */
+    html.rave { animation: rave 0.9s ease; }
     @keyframes rave {
       0%   { filter: none; }
       15%  { filter: hue-rotate(15deg) saturate(1.5) brightness(1.3); }
@@ -153,7 +154,7 @@
       filter: blur(50px); animation: spin 14s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    body.rave #disco { opacity: 0.38; animation-duration: 2.5s; }
+    html.rave #disco { opacity: 0.38; animation-duration: 2.5s; }
 
     /* Screen-Shake */
     .world.shake { animation: shake 0.6s ease; }
@@ -447,6 +448,7 @@
   <div id="drop">🐳 Wal-Fotos/Videos hier fallen lassen! 🐋</div>
 
   <script src="tracker.js"></script>
+  <script src="diagnose.js"></script>
   <script>
     (function () {
       "use strict";
@@ -735,11 +737,11 @@
       // ----- Rave-Flash -----
       var raveTimer = null;
       function partyFlash() {
-        document.body.classList.remove("rave");
-        void document.body.offsetWidth;
-        document.body.classList.add("rave");
+        document.documentElement.classList.remove("rave");
+        void document.documentElement.offsetWidth;
+        document.documentElement.classList.add("rave");
         clearTimeout(raveTimer);
-        raveTimer = setTimeout(function () { document.body.classList.remove("rave"); }, 900);
+        raveTimer = setTimeout(function () { document.documentElement.classList.remove("rave"); }, 900);
       }
 
       // ----- Feuerwerk (Funken im Konfetti-Canvas) -----
@@ -988,7 +990,7 @@
         r.interimResults = true;
         r.maxAlternatives = 5;
 
-        r.onstart = function () { running = true; lastActivityAt = Date.now(); setStatus("listening", "hört zu …"); };
+        r.onstart = function () { AnderStelleDiag.recStart(); running = true; lastActivityAt = Date.now(); setStatus("listening", "hört zu …"); };
 
         r.onresult = function (event) {
           lastActivityAt = Date.now();
@@ -1003,6 +1005,7 @@
               if (delta > 0) addHits(delta);
               else if (delta < 0) removeHits(-delta);
               utteranceCounted = 0;
+              AnderStelleDiag.final(result, alt.n);
               if (alt.n > 0) AnderStelleTracker.logHits(alt.n, "auto", SOURCE, sessionId);
             } else {
               interimText += bestAlternative(result).text + " ";
@@ -1015,6 +1018,7 @@
         };
 
         r.onerror = function (event) {
+          AnderStelleDiag.error(event.error);
           switch (event.error) {
             case "no-speech": setStatus("listening", "hört zu … (gerade keine Sprache)"); break;
             case "network": setStatus("error", "Netzwerkfehler – versuche neu zu verbinden …"); break;
@@ -1029,6 +1033,7 @@
         };
 
         r.onend = function () {
+          AnderStelleDiag.recEnd(userStopped);
           running = false;
           lastFinalIndex = -1; utteranceCounted = 0; renderLive(""); renderCount();
           if (!userStopped) scheduleRestart();
@@ -1044,8 +1049,8 @@
           restartTimer = null;
           if (userStopped || !listening || running) return;
           try { recognition.start(); lastActivityAt = Date.now(); setStatus("listening", "hört zu …"); }
-          catch (e) { scheduleRestart(500); }
-        }, delay || 300);
+          catch (e) { AnderStelleDiag.note("Neustart klappte nicht sofort – neuer Versuch"); scheduleRestart(400); }
+        }, delay || 120);
       }
 
       function start() {
@@ -1137,6 +1142,7 @@
       });
 
       // ================= Init =================
+      AnderStelleDiag.init({ matchRe: MATCH_RE });
       if (!SpeechRecognition) {
         unsupported.style.display = "block";
         toggleBtn.disabled = true;
