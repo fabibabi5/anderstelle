@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auswertung — „an der Stelle"</title>
+  <style>
+    /* Validierte Dark-Palette (dataviz): Blau=Laufzeit, Orange=Treffer */
+    :root {
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --ink: #ffffff;
+      --ink2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --runtime: #3987e5;   /* Laufzeit / Sessions */
+      --hit: #d95926;       /* Treffer */
+      --border: rgba(255,255,255,0.10);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--page); color: var(--ink);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: 28px 20px 60px; line-height: 1.4;
+    }
+    .wrap { max-width: 1040px; margin: 0 auto; }
+    header { display: flex; flex-wrap: wrap; gap: 14px; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+    h1 { font-size: 1.5rem; margin: 0; font-weight: 800; }
+    h1 .q { color: var(--hit); }
+    .nav a { color: var(--runtime); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+    .nav a:hover { text-decoration: underline; }
+    p.sub { color: var(--muted); margin: 2px 0 20px; font-size: 0.92rem; }
+
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 22px; }
+    .toolbar select, .toolbar button {
+      font: inherit; font-size: 0.9rem; padding: 8px 14px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer;
+    }
+    .toolbar button:hover { border-color: var(--runtime); }
+    .toolbar button.danger:hover { border-color: var(--hit); color: var(--hit); }
+    .toolbar .spacer { flex: 1; }
+    .toolbar label { color: var(--muted); font-size: 0.85rem; }
+
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 26px; }
+    .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+    .tile .val { font-size: 2rem; font-weight: 800; }
+    .tile .val.rt { color: var(--runtime); }
+    .tile .val.ht { color: var(--hit); }
+    .tile .lbl { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; }
+    .tile .note { color: var(--ink2); font-size: 0.82rem; margin-top: 6px; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 24px; }
+    .card h2 { margin: 0 0 4px; font-size: 1.05rem; }
+    .card .hint { color: var(--muted); font-size: 0.85rem; margin: 0 0 18px; }
+
+    .legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 0 0 14px; font-size: 0.85rem; color: var(--ink2); }
+    .legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .legend .sw { width: 22px; height: 12px; border-radius: 3px; }
+    .legend .sw.rt { background: var(--runtime); }
+    .legend .sw.ht { width: 3px; height: 16px; border-radius: 2px; background: var(--hit); }
+    .legend .sw.hm { width: 3px; height: 16px; border-radius: 2px; background: transparent; box-shadow: inset 0 0 0 2px var(--hit); }
+
+    /* Zeitstrahl */
+    .timeline { position: relative; width: 100%; height: 130px; }
+    .tl-track { position: absolute; left: 0; right: 0; top: 54px; height: 22px; background: var(--grid); border-radius: 6px; }
+    .tl-session {
+      position: absolute; top: 54px; height: 22px; background: var(--runtime); border-radius: 5px;
+      box-shadow: 0 0 0 2px var(--surface); min-width: 2px; cursor: pointer;
+    }
+    .tl-hit { position: absolute; top: 36px; width: 3px; height: 40px; background: var(--hit); border-radius: 2px; cursor: pointer; }
+    .tl-hit.manual { background: transparent; box-shadow: inset 0 0 0 2px var(--hit); }
+    .tl-axis { position: absolute; left: 0; right: 0; top: 92px; height: 30px; border-top: 1px solid var(--axis); }
+    .tl-tick { position: absolute; top: 0; transform: translateX(-50%); color: var(--muted); font-size: 0.72rem;
+               font-variant-numeric: tabular-nums; padding-top: 5px; white-space: nowrap; }
+    .tl-tick::before { content: ""; position: absolute; top: -6px; left: 50%; width: 1px; height: 6px; background: var(--axis); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .pill { font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink2); }
+    .empty-state { color: var(--muted); text-align: center; padding: 40px 10px; }
+
+    /* Tooltip */
+    #tip { position: fixed; z-index: 50; pointer-events: none; background: #000; color: #fff;
+           border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 0.8rem;
+           max-width: 260px; display: none; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+    #tip b { color: var(--hit); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>📊 Auswertung <span class="q">„an der Stelle"</span></h1>
+      <div class="nav">
+        <a href="index.html">← Standard</a> &nbsp;·&nbsp;
+        <a href="wal-party.html">Party 🐳</a>
+      </div>
+    </header>
+    <p class="sub">Setzt in Relation, <b>wann das Programm lief</b> (Laufzeit/Sessions) und <b>wann „an der Stelle" kam</b> (Treffer). Zentral gespeichert über alle Versionen.</p>
+
+    <div class="toolbar">
+      <label for="src">Quelle:</label>
+      <select id="src">
+        <option value="all">alle Versionen</option>
+        <option value="index">Standard</option>
+        <option value="party">Party</option>
+      </select>
+      <div class="spacer"></div>
+      <button id="refresh">↻ Aktualisieren</button>
+      <button id="export">⬇ JSON exportieren</button>
+      <button id="clear" class="danger">🗑 Verlauf löschen</button>
+    </div>
+
+    <div id="content"></div>
+  </div>
+
+  <div id="tip"></div>
+
+  <script src="tracker.js"></script>
+  <script>
+    (function () {
+      "use strict";
+
+      var contentEl = document.getElementById("content");
+      var srcEl = document.getElementById("src");
+      var tip = document.getElementById("tip");
+
+      // ---------- Helfer ----------
+      function pad(n) { return n < 10 ? "0" + n : "" + n; }
+      function fmtDateTime(ms) {
+        var d = new Date(ms);
+        return pad(d.getDate()) + "." + pad(d.getMonth() + 1) + ". " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+      }
+      function fmtClock(ms) {
+        var d = new Date(ms);
+        return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+      }
+      function fmtDur(msPair) {
+        var s = Math.round(msPair / 1000);
+        var h = Math.floor(s / 3600); s -= h * 3600;
+        var m = Math.floor(s / 60); s -= m * 60;
+        if (h > 0) return h + " h " + pad(m) + " min";
+        if (m > 0) return m + " min " + pad(s) + " s";
+        return s + " s";
+      }
+
+      function sessionDur(s) { return Math.max(0, (s.end || s.start) - s.start); }
+      function inSession(t, s) { return t >= s.start && t <= (s.end || s.start) + 1500; }
+
+      // ---------- Daten holen & filtern ----------
+      function getFiltered() {
+        var data = AnderStelleTracker.getData();
+        var src = srcEl.value;
+        var sessions = data.sessions.slice();
+        var events = data.events.slice();
+        if (src !== "all") {
+          sessions = sessions.filter(function (s) { return s.source === src; });
+          events = events.filter(function (e) { return e.source === src; });
+        }
+        sessions.sort(function (a, b) { return a.start - b.start; });
+        events.sort(function (a, b) { return a.t - b.t; });
+        return { sessions: sessions, events: events };
+      }
+
+      // ---------- Rendern ----------
+      function render() {
+        var d = getFiltered();
+        var sessions = d.sessions;
+        var hits = d.events.filter(function (e) { return e.type === "auto" || e.type === "manual"; });
+        var autoHits = hits.filter(function (e) { return e.type === "auto"; });
+        var manualHits = hits.filter(function (e) { return e.type === "manual"; });
+        var undos = d.events.filter(function (e) { return e.type === "undo"; }).length;
+        var net = Math.max(0, hits.length - undos);
+
+        if (sessions.length === 0 && hits.length === 0) {
+          contentEl.innerHTML = '<div class="card"><div class="empty-state">Noch keine Daten.<br>Starte den Zähler in der Standard- oder Party-Version und sag ein paarmal „an der Stelle".</div></div>';
+          return;
+        }
+
+        var totalRuntime = sessions.reduce(function (a, s) { return a + sessionDur(s); }, 0);
+        var hitsInSessions = hits.filter(function (e) {
+          for (var i = 0; i < sessions.length; i++) if (inSession(e.t, sessions[i])) return true;
+          return false;
+        }).length;
+        var runMin = totalRuntime / 60000;
+        var perMin = runMin > 0 ? (hitsInSessions / runMin).toFixed(2) : "–";
+
+        var html = "";
+
+        // Kennzahlen
+        html += '<div class="tiles">';
+        html += tile("rt", fmtDur(totalRuntime), "Gesamt-Laufzeit", sessions.length + " Session(s)");
+        html += tile("ht", String(net), "Treffer gesamt", autoHits.length + " automatisch · " + manualHits.length + " manuell" + (undos ? " · −" + undos : ""));
+        html += tile("ht", perMin, "Treffer / aktive Minute", hitsInSessions + " Treffer während Laufzeit");
+        html += tile("rt", sessions.length ? fmtDur(longest(sessions)) : "–", "Längste Session", "");
+        html += '</div>';
+
+        // Zeitstrahl
+        html += '<div class="card">';
+        html += '<h2>Zeitstrahl: Laufzeit × Treffer</h2>';
+        html += '<p class="hint">Blaue Balken = das Programm lief/lauschte. Orange Striche = „an der Stelle" (gefüllt: automatisch erkannt, umrandet: manuell ergänzt). Zum Anzeigen über die Marker fahren.</p>';
+        html += '<div class="legend"><span><i class="sw rt"></i> Laufzeit</span><span><i class="sw ht"></i> Treffer (auto)</span><span><i class="sw hm"></i> Treffer (manuell)</span></div>';
+        html += '<div class="timeline" id="timeline"></div>';
+        html += '</div>';
+
+        // Session-Tabelle
+        html += '<div class="card">';
+        html += '<h2>Sessions im Detail</h2>';
+        html += '<p class="hint">Jede Laufzeit mit ihren Treffern — so siehst du, wie dicht „an der Stelle" pro Laufphase kam.</p>';
+        html += sessionTable(sessions, hits);
+        html += '</div>';
+
+        contentEl.innerHTML = html;
+        drawTimeline(sessions, autoHits, manualHits);
+      }
+
+      function tile(kind, val, lbl, note) {
+        return '<div class="tile"><div class="val ' + kind + '">' + val + '</div><div class="lbl">' + lbl + '</div>' +
+               (note ? '<div class="note">' + note + '</div>' : '') + '</div>';
+      }
+      function longest(sessions) {
+        return sessions.reduce(function (m, s) { return Math.max(m, sessionDur(s)); }, 0);
+      }
+
+      function sessionTable(sessions, hits) {
+        if (sessions.length === 0) return '<div class="empty-state">Keine Sessions aufgezeichnet.</div>';
+        var rows = "";
+        for (var i = 0; i < sessions.length; i++) {
+          var s = sessions[i];
+          var dur = sessionDur(s);
+          var h = hits.filter(function (e) { return inSession(e.t, s); }).length;
+          var min = dur / 60000;
+          var rate = min > 0 ? (h / min).toFixed(2) : "–";
+          rows += '<tr>' +
+            '<td class="num">' + (i + 1) + '</td>' +
+            '<td><span class="pill">' + (s.source || "?") + '</span></td>' +
+            '<td>' + fmtDateTime(s.start) + '</td>' +
+            '<td>' + fmtDur(dur) + '</td>' +
+            '<td class="num">' + h + '</td>' +
+            '<td class="num">' + rate + '</td>' +
+          '</tr>';
+        }
+        return '<table><thead><tr><th class="num">#</th><th>Quelle</th><th>Start</th><th>Dauer</th>' +
+               '<th class="num">Treffer</th><th class="num">/min</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      }
+
+      // ---------- Zeitstrahl zeichnen ----------
+      function drawTimeline(sessions, autoHits, manualHits) {
+        var el = document.getElementById("timeline");
+        if (!el) return;
+
+        var times = [];
+        sessions.forEach(function (s) { times.push(s.start, s.end || s.start); });
+        autoHits.concat(manualHits).forEach(function (e) { times.push(e.t); });
+        if (times.length === 0) return;
+        var t0 = Math.min.apply(null, times);
+        var t1 = Math.max.apply(null, times);
+        var span = Math.max(1, t1 - t0);
+        var pad = span * 0.02;  // etwas Rand
+        t0 -= pad; t1 += pad; span = t1 - t0;
+        function pct(t) { return ((t - t0) / span) * 100; }
+
+        var h = '<div class="tl-track"></div>';
+
+        sessions.forEach(function (s) {
+          var left = pct(s.start), right = pct(s.end || s.start);
+          var info = "Session (" + (s.source || "?") + ")\n" + fmtDateTime(s.start) +
+                     " – " + fmtClock(s.end || s.start) + "\nDauer: " + fmtDur(sessionDur(s));
+          h += '<div class="tl-session" style="left:' + left + '%;width:' + Math.max(0.3, right - left) + '%" data-info="' + esc(info) + '"></div>';
+        });
+
+        function addHit(e, cls) {
+          var info = (cls === "manual" ? "Manuell ergänzt" : "Automatisch erkannt") + "\n" + fmtDateTime(e.t) + ":" + pad2(new Date(e.t).getSeconds());
+          h += '<div class="tl-hit ' + cls + '" style="left:' + pct(e.t) + '%" data-info="' + esc(info) + '"></div>';
+        }
+        autoHits.forEach(function (e) { addHit(e, "auto"); });
+        manualHits.forEach(function (e) { addHit(e, "manual"); });
+
+        // Achse mit ~5 Marken
+        h += '<div class="tl-axis">';
+        var N = 4;
+        for (var k = 0; k <= N; k++) {
+          var t = t0 + (span * k / N);
+          h += '<div class="tl-tick" style="left:' + (k / N * 100) + '%">' + fmtDateTime(t) + '</div>';
+        }
+        h += '</div>';
+
+        el.innerHTML = h;
+
+        // Tooltip
+        var marks = el.querySelectorAll("[data-info]");
+        for (var i = 0; i < marks.length; i++) {
+          marks[i].addEventListener("mouseenter", showTip);
+          marks[i].addEventListener("mousemove", moveTip);
+          marks[i].addEventListener("mouseleave", hideTip);
+        }
+      }
+      function pad2(n) { return n < 10 ? "0" + n : "" + n; }
+      function esc(s) { return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
+
+      function showTip(e) {
+        tip.textContent = e.currentTarget.getAttribute("data-info");
+        tip.style.display = "block";
+        moveTip(e);
+      }
+      function moveTip(e) {
+        var x = e.clientX + 14, y = e.clientY + 14;
+        if (x + tip.offsetWidth > window.innerWidth) x = e.clientX - tip.offsetWidth - 14;
+        tip.style.left = x + "px"; tip.style.top = y + "px";
+      }
+      function hideTip() { tip.style.display = "none"; }
+
+      // ---------- Toolbar ----------
+      document.getElementById("refresh").addEventListener("click", render);
+      srcEl.addEventListener("change", render);
+
+      document.getElementById("export").addEventListener("click", function () {
+        var data = AnderStelleTracker.getData();
+        var blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "an-der-stelle-log.json";
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+      });
+
+      document.getElementById("clear").addEventListener("click", function () {
+        if (confirm("Gesamtes Treffer-Log unwiderruflich löschen? (Sessions und Treffer aller Versionen)")) {
+          AnderStelleTracker.clear();
+          render();
+        }
+      });
+
+      // Live aktualisieren, wenn in einem anderen Tab gezählt wird.
+      window.addEventListener("storage", function (e) { if (e.key === AnderStelleTracker.KEY) render(); });
+      setInterval(render, 5000);
+
+      render();
+    })();
+  </script>
+</body>
+</html>

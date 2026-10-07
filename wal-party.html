@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🐳 „an der Stelle" — WAL-PARTY 🐳</title>
+  <style>
+    :root {
+      --text: #eafcff;
+      --muted: #9fd3e0;
+      --accent: #5ff0d8;
+      --hit: #ffd166;
+      --error: #ff6b6b;
+      --ok: #51cf66;
+      --panel: rgba(3, 32, 48, 0.55);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { margin: 0; padding: 0; min-height: 100%; }
+
+    body {
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+      background: linear-gradient(180deg, #021b2e 0%, #043b57 45%, #06607e 100%);
+    }
+
+    /* animiertes Ozean-Leuchten im Hintergrund */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: -20%;
+      background:
+        radial-gradient(circle at 20% 30%, rgba(95, 240, 216, 0.18), transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(90, 169, 255, 0.18), transparent 42%),
+        radial-gradient(circle at 50% 90%, rgba(199, 125, 255, 0.14), transparent 45%);
+      animation: drift 16s ease-in-out infinite alternate;
+      z-index: 0;
+      pointer-events: none;
+    }
+    @keyframes drift {
+      from { transform: translate(-3%, -2%) scale(1); }
+      to   { transform: translate(3%, 2%) scale(1.1); }
+    }
+
+    /* Rave-Flash bei Treffern */
+    body.rave { animation: rave 0.9s ease; }
+    @keyframes rave {
+      0%   { filter: none; }
+      15%  { filter: hue-rotate(40deg) saturate(1.6) brightness(1.25); }
+      30%  { filter: hue-rotate(-30deg) saturate(1.6) brightness(1.1); }
+      50%  { filter: hue-rotate(60deg) saturate(1.5) brightness(1.2); }
+      100% { filter: none; }
+    }
+
+    /* Hintergrund-Ebenen */
+    #bubbles, #swimmers { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+    .bubble {
+      position: absolute;
+      bottom: -40px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.6), rgba(255,255,255,0.08));
+      opacity: 0.5;
+      animation: rise linear infinite;
+    }
+    @keyframes rise {
+      to { transform: translateY(-115vh) translateX(var(--sway, 20px)); opacity: 0; }
+    }
+    .swimmer {
+      position: absolute;
+      font-size: 3rem;
+      opacity: 0.35;
+      animation: swim linear infinite;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.3));
+    }
+    @keyframes swim {
+      from { transform: translateX(-20vw) scaleX(1); }
+      to   { transform: translateX(120vw) scaleX(1); }
+    }
+
+    /* Effekt-Ebenen vorne */
+    #confetti { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
+    #emojis, #banner-layer, #whaleShow { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+
+    .fly {
+      position: absolute;
+      left: 50%; top: 46%;
+      transform: translate(-50%, -50%);
+      animation: fly 1.25s ease-out forwards;
+      will-change: transform, opacity;
+    }
+    @keyframes fly {
+      0%   { transform: translate(-50%, -50%) scale(0.4) rotate(0deg); opacity: 1; }
+      100% {
+        transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.3) rotate(var(--rot));
+        opacity: 0;
+      }
+    }
+
+    #banner-layer { display: flex; align-items: center; justify-content: center; }
+    #banner {
+      font-size: clamp(2rem, 9vw, 6rem);
+      font-weight: 900;
+      text-align: center;
+      color: #fff;
+      text-shadow: 0 0 30px rgba(95,240,216,0.9), 0 6px 0 rgba(0,0,0,0.25);
+      letter-spacing: 1px;
+      opacity: 0;
+      transform: scale(0.3);
+    }
+    #banner.show { animation: bannerPop 1.6s cubic-bezier(.2,1.4,.3,1) forwards; }
+    @keyframes bannerPop {
+      0%   { opacity: 0; transform: scale(0.3) rotate(-8deg); }
+      18%  { opacity: 1; transform: scale(1.15) rotate(3deg); }
+      35%  { transform: scale(1) rotate(-2deg); }
+      75%  { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.1); }
+    }
+
+    #whaleShow { display: flex; align-items: center; justify-content: center; }
+    .whale-emoji {
+      font-size: clamp(8rem, 34vw, 26rem);
+      filter: drop-shadow(0 10px 40px rgba(0,0,0,0.4));
+    }
+    .whale-media {
+      max-width: min(70vw, 620px);
+      max-height: 62vh;
+      border-radius: 24px;
+      border: 6px solid rgba(255,255,255,0.85);
+      box-shadow: 0 20px 70px rgba(0,0,0,0.55), 0 0 60px rgba(95,240,216,0.6);
+      object-fit: cover;
+      background: #021b2e;
+    }
+    .pop { animation: whalePop 0.5s cubic-bezier(.2,1.5,.3,1) forwards; }
+    @keyframes whalePop {
+      0%   { transform: scale(0.2) rotate(-10deg); opacity: 0; }
+      70%  { transform: scale(1.12) rotate(4deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    .bye { animation: whaleBye 0.5s ease forwards; }
+    @keyframes whaleBye {
+      to { transform: scale(0.6) translateY(40px); opacity: 0; }
+    }
+
+    /* ======= EXTRA PARTY ======= */
+    /* Rotierendes Disco-Licht */
+    #disco {
+      position: fixed; inset: -50%; z-index: 0; pointer-events: none; opacity: 0.12;
+      background: conic-gradient(from 0deg, #ff6b6b, #ffd166, #51cf66, #5aa9ff, #c77dff, #5ff0d8, #ff6b6b);
+      filter: blur(50px); animation: spin 14s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    body.rave #disco { opacity: 0.38; animation-duration: 2.5s; }
+
+    /* Screen-Shake */
+    .world.shake { animation: shake 0.6s ease; }
+    @keyframes shake {
+      0%,100% { transform: translate(0,0) rotate(0); }
+      15% { transform: translate(-8px, 5px) rotate(-0.5deg); }
+      30% { transform: translate(7px, -6px) rotate(0.5deg); }
+      45% { transform: translate(-6px, -4px) rotate(-0.4deg); }
+      60% { transform: translate(6px, 5px) rotate(0.4deg); }
+      75% { transform: translate(-4px, 2px) rotate(-0.2deg); }
+    }
+
+    /* Schockwellen-Ringe */
+    #rings { position: fixed; inset: 0; z-index: 58; pointer-events: none;
+             display: flex; align-items: center; justify-content: center; }
+    .ring { position: absolute; width: 48px; height: 48px; border-radius: 50%;
+            border: 5px solid var(--accent); animation: ring 0.95s cubic-bezier(.1,.6,.3,1) forwards; }
+    @keyframes ring { from { transform: scale(0.2); opacity: 0.9; } to { transform: scale(18); opacity: 0; } }
+
+    /* Streamer-Regen */
+    #streamers { position: fixed; inset: 0; z-index: 57; pointer-events: none; overflow: hidden; }
+    .streamer { position: absolute; top: -50px; width: 8px; height: 26px; border-radius: 4px;
+                animation: fall linear forwards; }
+    @keyframes fall { to { transform: translateY(112vh) rotate(540deg); opacity: 0.1; } }
+
+    /* Strobo-Blitz */
+    #flash { position: fixed; inset: 0; z-index: 64; pointer-events: none; background: #fff; opacity: 0; }
+    #flash.on { animation: strobe 0.5s ease; }
+    @keyframes strobe { 0% { opacity: 0.55; } 25% { opacity: 0; } 45% { opacity: 0.35; } 70% { opacity: 0; } 100% { opacity: 0; } }
+
+    /* Springende Wale */
+    #breach { position: fixed; inset: 0; z-index: 59; pointer-events: none; overflow: hidden; }
+    .breacher { position: absolute; bottom: -70px; font-size: clamp(3rem, 8vw, 5.5rem);
+                filter: drop-shadow(0 8px 20px rgba(0,0,0,0.45)); animation: breach 1.7s ease-in-out forwards; }
+    @keyframes breach {
+      0%   { transform: translateY(70px) rotate(-25deg) scaleX(1); opacity: 0; }
+      18%  { opacity: 1; }
+      50%  { transform: translateY(-48vh) rotate(12deg) scaleX(1); }
+      82%  { opacity: 1; }
+      100% { transform: translateY(70px) rotate(48deg) scaleX(-1); opacity: 0; }
+    }
+
+    /* Inhalt */
+    .world { position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center;
+             padding: 20px 16px 56px; gap: 18px; min-height: 100vh; }
+
+    h1 {
+      font-size: clamp(1.1rem, 3.4vw, 1.7rem);
+      font-weight: 800;
+      margin: 2px 0 0;
+      text-align: center;
+      text-shadow: 0 2px 14px rgba(0,0,0,0.4);
+    }
+    h1 .quote { color: var(--accent); }
+    h1 .whale { filter: drop-shadow(0 0 10px rgba(95,240,216,0.7)); }
+
+    #unsupported {
+      display: none;
+      max-width: 640px;
+      background: var(--error);
+      color: #1a0000;
+      font-weight: 700;
+      padding: 14px 18px;
+      border-radius: 14px;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .stage {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 20px; width: 100%; margin: 4px 0;
+    }
+
+    #counter {
+      font-size: clamp(6rem, 24vw, 16rem);
+      font-weight: 900;
+      line-height: 1.05;
+      letter-spacing: -2px;
+      font-variant-numeric: tabular-nums;
+      color: #fff;
+      text-shadow: 0 0 36px rgba(95,240,216,0.75), 0 6px 0 rgba(0,0,0,0.2);
+      user-select: none;
+      text-align: center;
+      transform-origin: center center;
+      transition: transform 0.12s ease;
+      will-change: transform;
+    }
+    @keyframes flash {
+      0%   { transform: scale(1); }
+      30%  { transform: scale(1.1); color: var(--hit);
+             text-shadow: 0 0 60px rgba(255,209,102,0.95), 0 0 120px rgba(255,209,102,0.5); }
+      100% { transform: scale(1); }
+    }
+    #counter.flash { animation: flash 0.5s ease; }
+
+    #live {
+      width: 100%; max-width: 720px; height: 3em; line-height: 1.4;
+      overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end;
+      align-items: center; padding: 6px 14px; border-radius: 14px;
+      background: var(--panel); backdrop-filter: blur(4px);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    #live-inner { width: 100%; text-align: center; font-size: 1.05rem; color: var(--text);
+                  font-style: italic; word-break: break-word; }
+    #live-inner .live-placeholder { color: var(--muted); opacity: 0.75; }
+    #live mark { background: var(--hit); color: #1a1200; padding: 1px 5px; border-radius: 5px;
+                 font-weight: 800; font-style: normal; }
+
+    .controls { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+    button {
+      font-size: 1.05rem; font-weight: 700; padding: 13px 24px; border: none;
+      border-radius: 14px; cursor: pointer; color: #022; background: var(--accent);
+      transition: filter 0.15s ease, transform 0.05s ease;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
+    button:hover { filter: brightness(1.1); }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.secondary { background: rgba(255,255,255,0.12); color: var(--text); }
+    button.adjust { background: rgba(255,255,255,0.1); color: var(--text); font-size: 1.3rem;
+                    font-weight: 900; padding: 9px 22px; min-width: 80px; }
+    button#plus.adjust { color: var(--ok); }
+    button#minus.adjust { color: var(--error); }
+
+    #status {
+      display: inline-flex; align-items: center; gap: 10px; font-size: 1.05rem; font-weight: 700;
+      padding: 8px 18px; border-radius: 999px; background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--muted); flex: none; }
+    #status.listening .dot { background: var(--ok); animation: pulse 1.4s infinite; }
+    #status.paused .dot { background: var(--muted); }
+    #status.error .dot { background: var(--error); }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(81,207,102,0.6); }
+      70% { box-shadow: 0 0 0 12px rgba(81,207,102,0); }
+      100% { box-shadow: 0 0 0 0 rgba(81,207,102,0); }
+    }
+
+    .stats { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; color: var(--text); }
+    .stat { text-align: center; background: var(--panel); padding: 10px 18px; border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.08); min-width: 120px; }
+    .stat b { display: block; font-size: 1.6rem; color: var(--accent); font-variant-numeric: tabular-nums; }
+    .stat span { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+
+    .media-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;
+                 font-size: 0.9rem; color: var(--muted); }
+    #mediaCount { color: var(--accent); font-weight: 700; }
+
+    footer { color: var(--muted); font-size: 0.82rem; text-align: center; max-width: 680px; line-height: 1.5; }
+
+    /* Drag-&-Drop-Overlay */
+    #drop {
+      position: fixed; inset: 0; z-index: 80; display: none;
+      align-items: center; justify-content: center; text-align: center;
+      background: rgba(2, 27, 46, 0.85); backdrop-filter: blur(3px);
+      font-size: clamp(1.4rem, 5vw, 2.6rem); font-weight: 800; color: #fff;
+    }
+    #drop.on { display: flex; }
+  </style>
+</head>
+<body>
+  <div id="bubbles"></div>
+  <div id="swimmers"></div>
+  <canvas id="confetti"></canvas>
+  <div id="emojis"></div>
+  <div id="whaleShow"></div>
+  <div id="banner-layer"><div id="banner">🐳 AN DER STELLE! 🐳</div></div>
+
+  <div class="world">
+    <h1><span class="whale">🐳</span> Jedes <span class="quote">„an der Stelle"</span> = WAL-PARTY <span class="whale">🐋</span></h1>
+
+    <div id="unsupported">
+      ⚠️ Dieser Browser unterstützt die Web Speech API nicht.
+      Bitte öffne diese Seite in <b>Google Chrome</b> auf dem Desktop.
+    </div>
+
+    <div class="stage">
+      <div id="counter">0</div>
+      <div id="live"><span id="live-inner"></span></div>
+    </div>
+
+    <div class="controls">
+      <button id="toggle">▶︎ Start</button>
+      <button id="reset" class="secondary">Reset</button>
+      <button id="sound" class="secondary" title="Party-Sound an/aus">🔊 Sound</button>
+    </div>
+
+    <div class="controls">
+      <button id="minus" class="adjust" title="Treffer manuell abziehen">− 1</button>
+      <button id="plus" class="adjust" title="Treffer manuell hinzufügen (löst Party aus)">+ 1</button>
+      <button id="party-test" class="secondary" title="Party testen">🎉 Test-Party</button>
+    </div>
+
+    <div id="status" class="paused">
+      <span class="dot"></span>
+      <span id="status-text">pausiert</span>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b id="rate-val">0.0</b><span>Wale / Minute</span></div>
+      <div class="stat"><b id="record-val">0</b><span>Rekord</span></div>
+    </div>
+
+    <div class="media-bar">
+      <button id="add-media" class="secondary">🐳 Eigene Wal-Fotos/Videos hinzufügen</button>
+      <input id="file-input" type="file" accept="image/*,video/*" multiple hidden />
+      <span><span id="mediaCount">0</span> Wal-Medien geladen · oder einfach Dateien auf die Seite ziehen</span>
+    </div>
+
+    <footer>
+      Erkennung läuft in Chrome; Audio wird zur Verarbeitung an Google-Server gesendet.
+      Zählerstand bleibt beim Reload erhalten (gemeinsam mit der Standard-Version), Transkripte werden nicht gespeichert.
+      Eigene Medien gelten nur für diese Sitzung. Tipp: Dateien <b>wal1.jpg … wal6.mp4</b> im Ordner werden automatisch geladen.<br>
+      <a href="auswertung.html" style="color:var(--accent);">📊 Zur Auswertung</a> ·
+      <a href="index.html" style="color:var(--accent);">Standard-Version</a>
+    </footer>
+  </div>
+
+  <div id="drop">🐳 Wal-Fotos/Videos hier fallen lassen! 🐋</div>
+
+  <script src="tracker.js"></script>
+  <script>
+    (function () {
+      "use strict";
+
+      // ---------- DOM ----------
+      var counterEl   = document.getElementById("counter");
+      var toggleBtn   = document.getElementById("toggle");
+      var resetBtn    = document.getElementById("reset");
+      var soundBtn    = document.getElementById("sound");
+      var minusBtn    = document.getElementById("minus");
+      var plusBtn     = document.getElementById("plus");
+      var partyTestBtn= document.getElementById("party-test");
+      var statusEl    = document.getElementById("status");
+      var statusText  = document.getElementById("status-text");
+      var rateValEl   = document.getElementById("rate-val");
+      var recordValEl = document.getElementById("record-val");
+      var liveEl      = document.getElementById("live-inner");
+      var unsupported = document.getElementById("unsupported");
+      var mediaCountEl= document.getElementById("mediaCount");
+      var fileInput   = document.getElementById("file-input");
+      var dropEl      = document.getElementById("drop");
+
+      // ---------- Matching (locker, wie in der Standard-Version) ----------
+      var MATCH_RE = /\b(?:an|in|am|ander|anner)\s*(?:der|die|dem)?\s*st[eä]l{1,2}en?\b/gi;
+
+      // ---------- State ----------
+      var STORAGE_KEY = "anderstelle.count";          // geteilt mit index.html
+      var RECORD_KEY  = "anderstelle.record";
+      var count = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+      if (isNaN(count) || count < 0) count = 0;
+      var record = parseInt(localStorage.getItem(RECORD_KEY), 10);
+      if (isNaN(record) || record < count) record = count;
+
+      var utteranceCounted = 0;
+      var prevCount = count;
+      var lastFinalIndex = -1;
+      var listening = false;
+      var userStopped = true;
+      var startTime = null;
+      var hitTimestamps = [];
+      var recognition = null;
+      var running = false;
+      var restartTimer = null;
+      var lastActivityAt = 0;
+
+      // Zentrales Log (tracker.js)
+      var SOURCE = "party";
+      var sessionId = null;
+
+      // ---------- Party-Medien ----------
+      var media = [];                 // { type:'image'|'video', src }
+      var soundOn = true;
+
+      // ---------- API-Support ----------
+      var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      // ================= Rendering =================
+      function renderCount() {
+        counterEl.textContent = count;
+        if (count > prevCount) flash();
+        prevCount = count;
+        if (count > record) { record = count; localStorage.setItem(RECORD_KEY, String(record)); }
+        recordValEl.textContent = record;
+      }
+      function flash() {
+        counterEl.classList.remove("flash");
+        void counterEl.offsetWidth;
+        counterEl.classList.add("flash");
+      }
+      function renderLive(text) {
+        if (!text) {
+          liveEl.innerHTML = '<span class="live-placeholder">Live-Mitschrift erscheint hier beim Sprechen …</span>';
+          return;
+        }
+        var safe = escapeHtml(text);
+        MATCH_RE.lastIndex = 0;
+        liveEl.innerHTML = safe.replace(MATCH_RE, function (m) { return "<mark>" + m + "</mark>"; });
+      }
+      function setStatus(cls, text) { statusEl.className = cls; statusText.textContent = text; }
+      function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
+
+      function updateRate() {
+        if (!startTime || hitTimestamps.length === 0) { rateValEl.textContent = "0.0"; return; }
+        var minutes = (Date.now() - startTime) / 60000;
+        rateValEl.textContent = minutes > 0 ? (hitTimestamps.length / minutes).toFixed(1) : "0.0";
+      }
+
+      function addHits(n) {
+        if (n <= 0) return;
+        var now = new Date();
+        for (var k = 0; k < n; k++) hitTimestamps.push(now);
+        count += n;
+        localStorage.setItem(STORAGE_KEY, String(count));
+        updateRate();
+        party(n);           // 🎉 die Party!
+      }
+      function removeHits(n) {
+        if (n <= 0) return;
+        count = Math.max(0, count - n);
+        localStorage.setItem(STORAGE_KEY, String(count));
+        for (var j = 0; j < n && hitTimestamps.length > 0; j++) hitTimestamps.pop();
+        updateRate();
+      }
+      function countMatches(text) {
+        MATCH_RE.lastIndex = 0;
+        var m = text.match(MATCH_RE);
+        return m ? m.length : 0;
+      }
+      function bestAlternative(result) {
+        var bestText = result[0].transcript, bestN = countMatches(bestText);
+        for (var a = 1; a < result.length; a++) {
+          var t = result[a].transcript, n = countMatches(t);
+          if (n > bestN) { bestN = n; bestText = t; }
+        }
+        return { text: bestText.trim(), n: bestN };
+      }
+
+      // ================= PARTY 🐳🎉 =================
+      var CONF_COLORS = ["#5ff0d8", "#ffd166", "#ff6b6b", "#51cf66", "#5aa9ff", "#c77dff", "#ffffff"];
+      var BURST_EMOJI = ["🐳", "🐋", "🎉", "🎊", "💦", "🌊", "✨", "🫧", "🐬"];
+
+      function party(times) {
+        times = times || 1;
+        showBanner();
+        burstConfetti(130 + times * 30);
+        burstEmoji(20 + times * 6);
+        showWhale();
+        partyFlash();
+        airhorn();
+      }
+
+      function partyTest() { ensureAudio(); party(2); }
+
+      // ----- Konfetti (Canvas) -----
+      var confCanvas = document.getElementById("confetti");
+      var confCtx = confCanvas.getContext("2d");
+      var confParticles = [], confRunning = false;
+      function resizeConfetti() { confCanvas.width = window.innerWidth; confCanvas.height = window.innerHeight; }
+      resizeConfetti();
+      window.addEventListener("resize", resizeConfetti);
+
+      function burstConfetti(n) {
+        for (var i = 0; i < n; i++) {
+          confParticles.push({
+            x: window.innerWidth / 2 + (Math.random() - 0.5) * 240,
+            y: window.innerHeight / 2 + (Math.random() - 0.5) * 120,
+            vx: (Math.random() - 0.5) * 16,
+            vy: (Math.random() - 1) * 15 - 3,
+            g: 0.3 + Math.random() * 0.25,
+            size: 6 + Math.random() * 9,
+            rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.35,
+            color: CONF_COLORS[(Math.random() * CONF_COLORS.length) | 0],
+            life: 110 + Math.random() * 70,
+            shape: Math.random() < 0.5 ? "rect" : "circ"
+          });
+        }
+        if (confParticles.length > 900) confParticles.splice(0, confParticles.length - 900);
+        if (!confRunning) { confRunning = true; requestAnimationFrame(confStep); }
+      }
+      function confStep() {
+        confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+        for (var i = confParticles.length - 1; i >= 0; i--) {
+          var p = confParticles[i];
+          p.vy += p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life--;
+          if (p.life <= 0 || p.y > confCanvas.height + 50) { confParticles.splice(i, 1); continue; }
+          confCtx.save();
+          confCtx.translate(p.x, p.y); confCtx.rotate(p.rot); confCtx.fillStyle = p.color;
+          if (p.shape === "rect") confCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          else { confCtx.beginPath(); confCtx.arc(0, 0, p.size / 2, 0, 6.28); confCtx.fill(); }
+          confCtx.restore();
+        }
+        if (confParticles.length > 0) requestAnimationFrame(confStep);
+        else { confRunning = false; confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height); }
+      }
+
+      // ----- Emoji-Explosion -----
+      var emojiLayer = document.getElementById("emojis");
+      function burstEmoji(n) {
+        for (var i = 0; i < n; i++) {
+          var e = document.createElement("span");
+          e.className = "fly";
+          e.textContent = BURST_EMOJI[(Math.random() * BURST_EMOJI.length) | 0];
+          var ang = Math.random() * 6.28, dist = 120 + Math.random() * 300;
+          e.style.setProperty("--dx", (Math.cos(ang) * dist) + "px");
+          e.style.setProperty("--dy", (Math.sin(ang) * dist) + "px");
+          e.style.setProperty("--rot", ((Math.random() - 0.5) * 720) + "deg");
+          e.style.fontSize = (1.4 + Math.random() * 2.4) + "rem";
+          emojiLayer.appendChild(e);
+          (function (el) { setTimeout(function () { el.remove(); }, 1300); })(e);
+        }
+      }
+
+      // ----- Banner -----
+      var bannerEl = document.getElementById("banner");
+      function showBanner() {
+        bannerEl.classList.remove("show");
+        void bannerEl.offsetWidth;
+        bannerEl.classList.add("show");
+      }
+
+      // ----- Wal in der Mitte (eigene Medien oder Emoji) -----
+      var whaleShow = document.getElementById("whaleShow");
+      function showWhale() {
+        var el;
+        if (media.length) {
+          var m = media[(Math.random() * media.length) | 0];
+          if (m.type === "image") {
+            el = document.createElement("img");
+            el.src = m.src;
+            el.className = "whale-media pop";
+          } else {
+            el = document.createElement("video");
+            el.src = m.src; el.autoplay = true; el.loop = true; el.muted = true;
+            el.setAttribute("playsinline", "");
+            el.className = "whale-media pop";
+            if (el.play) { var pr = el.play(); if (pr && pr.catch) pr.catch(function () {}); }
+          }
+        } else {
+          el = document.createElement("div");
+          el.className = "whale-emoji pop";
+          el.textContent = Math.random() < 0.5 ? "🐳" : "🐋";
+        }
+        whaleShow.appendChild(el);
+        setTimeout(function () {
+          el.classList.remove("pop"); el.classList.add("bye");
+          setTimeout(function () { el.remove(); }, 500);
+        }, 2300);
+      }
+
+      // ----- Rave-Flash -----
+      var raveTimer = null;
+      function partyFlash() {
+        document.body.classList.remove("rave");
+        void document.body.offsetWidth;
+        document.body.classList.add("rave");
+        clearTimeout(raveTimer);
+        raveTimer = setTimeout(function () { document.body.classList.remove("rave"); }, 900);
+      }
+
+      // ----- Airhorn (Web Audio, ohne Datei) -----
+      var audioCtx = null;
+      function ensureAudio() {
+        if (!audioCtx) {
+          try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audioCtx = null; }
+        }
+        if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+      }
+      function airhorn() {
+        if (!soundOn) return;
+        ensureAudio();
+        if (!audioCtx) return;
+        var t0 = audioCtx.currentTime;
+        [0, 0.22, 0.46].forEach(function (off) {
+          var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+          o.type = "sawtooth";
+          o.frequency.setValueAtTime(300, t0 + off);
+          o.frequency.exponentialRampToValueAtTime(540, t0 + off + 0.05);
+          g.gain.setValueAtTime(0.0001, t0 + off);
+          g.gain.exponentialRampToValueAtTime(0.28, t0 + off + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + off + 0.19);
+          o.connect(g); g.connect(audioCtx.destination);
+          o.start(t0 + off); o.stop(t0 + off + 0.22);
+        });
+      }
+
+      // ================= Hintergrund-Deko =================
+      (function makeBubbles() {
+        var layer = document.getElementById("bubbles");
+        for (var i = 0; i < 26; i++) {
+          var b = document.createElement("div");
+          b.className = "bubble";
+          var size = 6 + Math.random() * 26;
+          b.style.width = size + "px"; b.style.height = size + "px";
+          b.style.left = (Math.random() * 100) + "vw";
+          b.style.setProperty("--sway", ((Math.random() - 0.5) * 80) + "px");
+          b.style.animationDuration = (8 + Math.random() * 12) + "s";
+          b.style.animationDelay = (-Math.random() * 15) + "s";
+          layer.appendChild(b);
+        }
+      })();
+      (function makeSwimmers() {
+        var layer = document.getElementById("swimmers");
+        var whales = ["🐋", "🐳", "🐬"];
+        for (var i = 0; i < 5; i++) {
+          var w = document.createElement("div");
+          w.className = "swimmer";
+          w.textContent = whales[i % whales.length];
+          w.style.top = (10 + Math.random() * 75) + "vh";
+          w.style.fontSize = (2 + Math.random() * 3) + "rem";
+          w.style.animationDuration = (18 + Math.random() * 20) + "s";
+          w.style.animationDelay = (-Math.random() * 25) + "s";
+          layer.appendChild(w);
+        }
+      })();
+
+      // ================= Medien laden =================
+      function updateMediaCount() { mediaCountEl.textContent = media.length; }
+      function addFile(file) {
+        if (!file || !file.type) return;
+        var url = URL.createObjectURL(file);
+        if (file.type.indexOf("image") === 0) media.push({ type: "image", src: url });
+        else if (file.type.indexOf("video") === 0) media.push({ type: "video", src: url });
+        else { URL.revokeObjectURL(url); return; }
+        updateMediaCount();
+      }
+      // Auto-Laden aus dem Ordner: wal1..wal6 mit gängigen Endungen (fehlende werden ignoriert).
+      (function probeFolder() {
+        var names = ["wal1", "wal2", "wal3", "wal4", "wal5", "wal6"];
+        var imgExt = ["jpg", "jpeg", "png", "gif", "webp"];
+        var vidExt = ["mp4", "webm"];
+        names.forEach(function (name) {
+          imgExt.forEach(function (ext) {
+            var img = new Image();
+            img.onload = function () { media.push({ type: "image", src: name + "." + ext }); updateMediaCount(); };
+            img.src = name + "." + ext;
+          });
+          vidExt.forEach(function (ext) {
+            var v = document.createElement("video");
+            v.onloadeddata = function () { media.push({ type: "video", src: name + "." + ext }); updateMediaCount(); };
+            v.src = name + "." + ext;
+          });
+        });
+      })();
+
+      // ================= Spracherkennung =================
+      function createRecognition() {
+        var r = new SpeechRecognition();
+        r.lang = "de-DE";
+        r.continuous = true;
+        r.interimResults = true;
+        r.maxAlternatives = 5;
+
+        r.onstart = function () { running = true; lastActivityAt = Date.now(); setStatus("listening", "hört zu …"); };
+
+        r.onresult = function (event) {
+          lastActivityAt = Date.now();
+          var interimText = "";
+          for (var i = event.resultIndex; i < event.results.length; i++) {
+            var result = event.results[i];
+            if (result.isFinal) {
+              if (i <= lastFinalIndex) continue;
+              lastFinalIndex = i;
+              var alt = bestAlternative(result);
+              var delta = alt.n - utteranceCounted;
+              if (delta > 0) addHits(delta);
+              else if (delta < 0) removeHits(-delta);
+              utteranceCounted = 0;
+              if (alt.n > 0) AnderStelleTracker.logHits(alt.n, "auto", SOURCE, sessionId);
+            } else {
+              interimText += bestAlternative(result).text + " ";
+            }
+          }
+          var interimN = countMatches(interimText);
+          if (interimN > utteranceCounted) { addHits(interimN - utteranceCounted); utteranceCounted = interimN; }
+          renderLive(interimText.trim());
+          renderCount();
+        };
+
+        r.onerror = function (event) {
+          switch (event.error) {
+            case "no-speech": setStatus("listening", "hört zu … (gerade keine Sprache)"); break;
+            case "network": setStatus("error", "Netzwerkfehler – versuche neu zu verbinden …"); break;
+            case "audio-capture":
+              setStatus("error", "Fehler: kein Mikrofon gefunden"); userStopped = true; listening = false; updateToggle(); break;
+            case "not-allowed":
+            case "service-not-allowed":
+              setStatus("error", "Fehler: Mikrofonzugriff verweigert"); userStopped = true; listening = false; updateToggle(); break;
+            case "aborted": break;
+            default: setStatus("error", "Fehler: " + event.error);
+          }
+        };
+
+        r.onend = function () {
+          running = false;
+          lastFinalIndex = -1; utteranceCounted = 0; renderLive(""); renderCount();
+          if (!userStopped) scheduleRestart();
+          else { listening = false; setStatus("paused", "pausiert"); updateToggle(); }
+        };
+
+        return r;
+      }
+
+      function scheduleRestart(delay) {
+        if (restartTimer) return;
+        restartTimer = setTimeout(function () {
+          restartTimer = null;
+          if (userStopped || !listening || running) return;
+          try { recognition.start(); lastActivityAt = Date.now(); setStatus("listening", "hört zu …"); }
+          catch (e) { scheduleRestart(500); }
+        }, delay || 300);
+      }
+
+      function start() {
+        if (listening) return;
+        if (!recognition) recognition = createRecognition();
+        ensureAudio();
+        userStopped = false; listening = true;
+        lastFinalIndex = -1; utteranceCounted = 0; lastActivityAt = Date.now();
+        renderLive("");
+        if (!startTime) startTime = Date.now();
+        sessionId = AnderStelleTracker.startSession(SOURCE);
+        try { recognition.start(); setStatus("listening", "hört zu …"); }
+        catch (e) { setStatus("listening", "hört zu …"); }
+        updateToggle();
+      }
+
+      function stop() {
+        userStopped = true; listening = false;
+        if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+        if (recognition) { try { recognition.stop(); } catch (e) {} }
+        AnderStelleTracker.endSession(sessionId); sessionId = null;
+        setStatus("paused", "pausiert"); updateToggle();
+      }
+
+      function updateToggle() { toggleBtn.textContent = listening ? "⏸ Stopp" : "▶︎ Start"; }
+
+      // ================= Events =================
+      toggleBtn.addEventListener("click", function () { if (listening) stop(); else start(); });
+
+      resetBtn.addEventListener("click", function () {
+        count = 0; utteranceCounted = 0; prevCount = 0;
+        localStorage.setItem(STORAGE_KEY, "0");
+        hitTimestamps = []; startTime = listening ? Date.now() : null;
+        renderCount(); renderLive(""); updateRate();
+      });
+
+      plusBtn.addEventListener("click", function () {
+        ensureAudio();
+        if (!startTime) startTime = Date.now();
+        addHits(1); renderCount();
+        AnderStelleTracker.logHits(1, "manual", SOURCE, sessionId);
+      });
+      minusBtn.addEventListener("click", function () {
+        if (count <= 0) return;
+        removeHits(1); renderCount();
+        AnderStelleTracker.logUndo(1, SOURCE, sessionId);
+      });
+
+      soundBtn.addEventListener("click", function () {
+        soundOn = !soundOn;
+        soundBtn.textContent = soundOn ? "🔊 Sound" : "🔇 Stumm";
+        if (soundOn) ensureAudio();
+      });
+
+      partyTestBtn.addEventListener("click", partyTest);
+
+      // Medien per Button / Datei-Dialog
+      document.getElementById("add-media").addEventListener("click", function () { fileInput.click(); });
+      fileInput.addEventListener("change", function () {
+        for (var i = 0; i < fileInput.files.length; i++) addFile(fileInput.files[i]);
+        fileInput.value = "";
+      });
+
+      // Medien per Drag & Drop
+      var dragDepth = 0;
+      window.addEventListener("dragenter", function (e) { e.preventDefault(); dragDepth++; dropEl.classList.add("on"); });
+      window.addEventListener("dragover", function (e) { e.preventDefault(); });
+      window.addEventListener("dragleave", function (e) { e.preventDefault(); dragDepth--; if (dragDepth <= 0) dropEl.classList.remove("on"); });
+      window.addEventListener("drop", function (e) {
+        e.preventDefault(); dragDepth = 0; dropEl.classList.remove("on");
+        if (!e.dataTransfer) return;
+        for (var i = 0; i < e.dataTransfer.files.length; i++) addFile(e.dataTransfer.files[i]);
+      });
+
+      // Rate aktualisieren + Session am Leben halten
+      setInterval(function () {
+        if (listening) { updateRate(); AnderStelleTracker.touchSession(sessionId); }
+      }, 5000);
+      window.addEventListener("pagehide", function () {
+        if (sessionId) AnderStelleTracker.endSession(sessionId);
+      });
+      // Watchdog gegen stilles Beenden
+      setInterval(function () {
+        if (!listening || userStopped) return;
+        if (!running && !restartTimer) scheduleRestart(200);
+      }, 3000);
+      document.addEventListener("visibilitychange", function () {
+        if (!document.hidden && listening && !userStopped && !running && !restartTimer) scheduleRestart(200);
+      });
+
+      // ================= Init =================
+      if (!SpeechRecognition) {
+        unsupported.style.display = "block";
+        toggleBtn.disabled = true;
+        setStatus("error", "nicht unterstützt");
+      }
+      renderCount();
+      renderLive("");
+      updateRate();
+      updateToggle();
+      updateMediaCount();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>„an der Stelle"-Zähler</title>
+  <style>
+    :root {
+      --bg: #0e1116;
+      --panel: #171c24;
+      --panel-2: #1f2630;
+      --text: #e8edf2;
+      --muted: #8b97a7;
+      --accent: #4fd1c5;
+      --accent-strong: #19e3c0;
+      --hit: #ffd166;
+      --error: #ff6b6b;
+      --ok: #51cf66;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+      gap: 20px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin: 4px 0 0;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    h1 .quote { color: var(--accent); }
+
+    #unsupported {
+      display: none;
+      max-width: 640px;
+      background: var(--error);
+      color: #1a0000;
+      font-weight: 600;
+      padding: 14px 18px;
+      border-radius: 12px;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 22px;                /* klarer Abstand Zähler <-> Live-Vorschau */
+      width: 100%;
+      margin: 6px 0;
+    }
+
+    #counter {
+      font-size: clamp(6rem, 22vw, 15rem);
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -2px;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+      user-select: none;
+      text-align: center;
+      transform-origin: center center;
+      transition: transform 0.12s ease;
+      will-change: transform;
+    }
+
+    @keyframes flash {
+      0%   { transform: scale(1);    color: var(--accent); text-shadow: none; }
+      30%  { transform: scale(1.07); color: var(--hit);    text-shadow: 0 0 36px rgba(255, 209, 102, 0.75); }
+      100% { transform: scale(1);    color: var(--accent); text-shadow: none; }
+    }
+
+    #counter.flash { animation: flash 0.5s ease; }
+
+    #live {
+      width: 100%;
+      max-width: 720px;
+      height: 3em;              /* feste Höhe (~2 Zeilen) -> Layout springt nicht */
+      line-height: 1.4;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;  /* neueste Zeile unten, älteres läuft oben raus */
+      align-items: center;
+      padding: 6px 14px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+    #live-inner {
+      width: 100%;
+      text-align: center;
+      font-size: 1.05rem;
+      color: var(--text);
+      font-style: italic;
+      word-break: break-word;
+    }
+    #live-inner .live-placeholder {
+      color: var(--muted);
+      opacity: 0.7;
+    }
+    #live mark {
+      background: var(--hit);
+      color: #1a1200;
+      padding: 1px 4px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-style: normal;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      font-size: 1.1rem;
+      font-weight: 600;
+      padding: 14px 26px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      color: var(--bg);
+      background: var(--accent);
+      transition: filter 0.15s ease, transform 0.05s ease;
+    }
+
+    button:hover { filter: brightness(1.1); }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    button.secondary {
+      background: var(--panel-2);
+      color: var(--text);
+    }
+
+    button.adjust {
+      background: var(--panel);
+      color: var(--text);
+      font-size: 1.3rem;
+      font-weight: 800;
+      padding: 10px 24px;
+      min-width: 84px;
+      font-variant-numeric: tabular-nums;
+    }
+    button#plus.adjust { color: var(--ok); }
+    button#minus.adjust { color: var(--error); }
+
+    #status {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      padding: 8px 18px;
+      border-radius: 999px;
+      background: var(--panel);
+      min-height: 24px;
+    }
+
+    .dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex: none;
+    }
+
+    #status.listening .dot {
+      background: var(--ok);
+      box-shadow: 0 0 0 0 rgba(81, 207, 102, 0.6);
+      animation: pulse 1.4s infinite;
+    }
+    #status.paused .dot { background: var(--muted); }
+    #status.error .dot { background: var(--error); }
+
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(81, 207, 102, 0.6); }
+      70%  { box-shadow: 0 0 0 12px rgba(81, 207, 102, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(81, 207, 102, 0); }
+    }
+
+    .panels {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+      max-width: 920px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 18px 20px;
+      flex: 1 1 300px;
+      min-width: 280px;
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    #rate {
+      font-size: 1.2rem;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+    #rate b { color: var(--accent); font-size: 1.4rem; }
+
+    #log, #timestamps {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #log li {
+      background: var(--panel-2);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 0.98rem;
+      line-height: 1.4;
+      color: var(--muted);
+      word-break: break-word;
+    }
+
+    #log li mark {
+      background: var(--hit);
+      color: #1a1200;
+      padding: 1px 4px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    #timestamps {
+      max-height: 240px;
+      overflow-y: auto;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #timestamps li {
+      display: flex;
+      justify-content: space-between;
+      font-size: 1rem;
+      padding: 6px 10px;
+      background: var(--panel-2);
+      border-radius: 8px;
+    }
+    #timestamps li .idx { color: var(--muted); }
+    #timestamps li .time { color: var(--accent); font-weight: 600; }
+
+    .empty { color: var(--muted); font-style: italic; }
+
+    footer {
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+      max-width: 640px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <h1>Wie oft sagt der Dozent <span class="quote">„an der Stelle"</span>?</h1>
+
+  <div id="unsupported">
+    ⚠️ Dieser Browser unterstützt die Web Speech API nicht.
+    Bitte öffne diese Seite in <b>Google Chrome</b> auf dem Desktop.
+  </div>
+
+  <div class="stage">
+    <div id="counter">0</div>
+    <div id="live"><span id="live-inner"></span></div>
+  </div>
+
+  <div class="controls">
+    <button id="toggle">▶︎ Start</button>
+    <button id="reset" class="secondary">Reset</button>
+  </div>
+
+  <div class="controls">
+    <button id="minus" class="adjust" title="Treffer manuell abziehen">− 1</button>
+    <button id="plus" class="adjust" title="Treffer manuell hinzufügen">+ 1</button>
+  </div>
+
+  <div id="status" class="paused">
+    <span class="dot"></span>
+    <span id="status-text">pausiert</span>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <h2>Live-Log (letzte Sätze)</h2>
+      <ul id="log"><li class="empty">Noch nichts erkannt…</li></ul>
+    </div>
+    <div class="panel">
+      <h2>Treffer-Zeitstempel</h2>
+      <div id="rate">Treffer / Minute: <b id="rate-val">0.0</b></div>
+      <ul id="timestamps"><li class="empty">Noch keine Treffer.</li></ul>
+    </div>
+  </div>
+
+  <footer>
+    Erkennung läuft lokal in Chrome; das Audio wird dabei zur Verarbeitung an Google-Server gesendet.
+    Der Zählerstand bleibt beim Reload erhalten, Transkripte werden nicht gespeichert.<br>
+    Tipp: Tab im Vordergrund lassen (Chrome drosselt Hintergrund-Tabs). Für beste Erkennung ein
+    nahes Mikrofon nutzen – das eingebaute Laptop-Mikro hört den Dozenten nur als „Fernfeld".<br>
+    <a href="auswertung.html" style="color:#4fd1c5;">📊 Zur Auswertung</a> ·
+    <a href="wal-party.html" style="color:#4fd1c5;">🐳 Party-Modus</a>
+  </footer>
+
+  <script src="tracker.js"></script>
+  <script>
+    (function () {
+      "use strict";
+
+      // --- DOM ---
+      var counterEl   = document.getElementById("counter");
+      var toggleBtn   = document.getElementById("toggle");
+      var resetBtn    = document.getElementById("reset");
+      var minusBtn    = document.getElementById("minus");
+      var plusBtn     = document.getElementById("plus");
+      var statusEl    = document.getElementById("status");
+      var statusText  = document.getElementById("status-text");
+      var logEl       = document.getElementById("log");
+      var tsEl        = document.getElementById("timestamps");
+      var rateValEl   = document.getElementById("rate-val");
+      var liveEl      = document.getElementById("live-inner");
+      var unsupported = document.getElementById("unsupported");
+
+      // --- Matching ---
+      // "Locker": tolerant gegenüber typischen Verhörern/Verschleifungen.
+      //   Verbinder:   an | in | am | ander | anner
+      //   Artikel:     der | die | dem   (optional)
+      //   Nomen:       stelle | stele | ställe | stellen …
+      // Fängt u. a. "an der Stelle", "an die Stelle", "ander Stelle",
+      // "anderstelle" (ein Wort), "an der Stele". case-insensitive, global.
+      // Bewusst breit – kann Grenzfälle (z. B. "anstelle") mitzählen.
+      var MATCH_RE = /\b(?:an|in|am|ander|anner)\s*(?:der|die|dem)?\s*st[eä]l{1,2}en?\b/gi;
+
+      // --- State ---
+      var STORAGE_KEY = "anderstelle.count";
+      var count = parseInt(localStorage.getItem(STORAGE_KEY), 10);  // gezählte Treffer (persistiert)
+      if (isNaN(count) || count < 0) count = 0;
+
+      var utteranceCounted = 0;   // bereits gezählte Treffer der laufenden (noch nicht finalen) Äußerung
+      var prevCount = count;      // zuletzt angezeigter Wert (für Flash-Effekt)
+      var lastFinalIndex = -1;    // letzter bereits verarbeiteter finaler Result-Index (pro Session)
+      var listening = false;      // ist Erkennung aktiv/gewünscht?
+      var userStopped = true;     // hat der Nutzer bewusst gestoppt?
+      var startTime = null;       // Zeitpunkt des ersten Starts (für Rate)
+      var hitTimestamps = [];     // Date-Objekte je Treffer (nicht persistiert)
+      var recognition = null;
+      var running = false;        // läuft die Erkennungs-Session gerade? (onstart/onend)
+      var restartTimer = null;    // Timer für verzögerten Neustart
+      var lastActivityAt = 0;     // Zeitpunkt des letzten Ergebnisses/Starts (Watchdog)
+
+      // Zentrales Log (tracker.js)
+      var SOURCE = "index";
+      var sessionId = null;       // ID der laufenden Log-Session
+
+      // --- API support ---
+      var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        unsupported.style.display = "block";
+        toggleBtn.disabled = true;
+        counterEl.textContent = count;
+        setStatus("error", "nicht unterstützt");
+        return;
+      }
+
+      // --- Rendering ---
+      function renderCount() {
+        counterEl.textContent = count;
+        if (count > prevCount) flash();
+        prevCount = count;
+      }
+
+      function flash() {
+        counterEl.classList.remove("flash");
+        // reflow erzwingen, damit die Animation neu startet
+        void counterEl.offsetWidth;
+        counterEl.classList.add("flash");
+      }
+
+      // Live-Vorschau des gerade erkannten (noch nicht finalen) Textes.
+      function renderLive(text) {
+        if (!text) {
+          liveEl.innerHTML = '<span class="live-placeholder">Live-Mitschrift erscheint hier beim Sprechen …</span>';
+          return;
+        }
+        var safe = escapeHtml(text);
+        MATCH_RE.lastIndex = 0;
+        liveEl.innerHTML = safe.replace(MATCH_RE, function (m) {
+          return "<mark>" + m + "</mark>";
+        });
+      }
+
+      function setStatus(cls, text) {
+        statusEl.className = cls;
+        statusText.textContent = text;
+      }
+
+      function pad(n) { return n < 10 ? "0" + n : "" + n; }
+
+      function fmtTime(d) {
+        return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+      }
+
+      function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
+
+      // Satz ins Log, Treffer hervorgehoben. Hält die letzten 5.
+      function addLogEntry(transcript) {
+        var placeholder = logEl.querySelector(".empty");
+        if (placeholder) placeholder.remove();
+
+        var safe = escapeHtml(transcript);
+        var highlighted = safe.replace(MATCH_RE, function (m) {
+          return "<mark>" + m + "</mark>";
+        });
+
+        var li = document.createElement("li");
+        li.innerHTML = highlighted;
+        logEl.insertBefore(li, logEl.firstChild);
+
+        while (logEl.children.length > 5) {
+          logEl.removeChild(logEl.lastChild);
+        }
+      }
+
+      function addTimestamps(dates) {
+        var placeholder = tsEl.querySelector(".empty");
+        if (placeholder) placeholder.remove();
+
+        dates.forEach(function (d) {
+          hitTimestamps.push(d);
+          var li = document.createElement("li");
+          var idx = document.createElement("span");
+          idx.className = "idx";
+          idx.textContent = "#" + hitTimestamps.length;
+          var t = document.createElement("span");
+          t.className = "time";
+          t.textContent = fmtTime(d);
+          li.appendChild(idx);
+          li.appendChild(t);
+          tsEl.insertBefore(li, tsEl.firstChild);
+        });
+
+        updateRate();
+      }
+
+      // Entfernt die k zuletzt hinzugefügten Treffer (für Abgleich mit finalem Ergebnis).
+      function removeLastTimestamps(k) {
+        for (var j = 0; j < k && hitTimestamps.length > 0; j++) {
+          hitTimestamps.pop();
+          if (tsEl.firstChild) tsEl.removeChild(tsEl.firstChild);
+        }
+        // Nummerierung der verbliebenen Einträge auffrischen.
+        var items = tsEl.querySelectorAll("li .idx");
+        for (var m = 0; m < items.length; m++) {
+          items[m].textContent = "#" + (hitTimestamps.length - m);
+        }
+        if (hitTimestamps.length === 0) {
+          tsEl.innerHTML = '<li class="empty">Noch keine Treffer.</li>';
+        }
+        updateRate();
+      }
+
+      // Zählt n Treffer, speichert und ergänzt Zeitstempel.
+      function addHits(n) {
+        if (n <= 0) return;
+        var now = new Date();
+        var dates = [];
+        for (var k = 0; k < n; k++) dates.push(now);
+        count += n;
+        localStorage.setItem(STORAGE_KEY, String(count));
+        addTimestamps(dates);
+      }
+
+      // Zählt n Treffer wieder ab (Korrektur), entfernt die Zeitstempel.
+      function removeHits(n) {
+        if (n <= 0) return;
+        count = Math.max(0, count - n);
+        localStorage.setItem(STORAGE_KEY, String(count));
+        removeLastTimestamps(n);
+      }
+
+      // Anzahl der Treffer in einem Text.
+      function countMatches(text) {
+        MATCH_RE.lastIndex = 0;
+        var m = text.match(MATCH_RE);
+        return m ? m.length : 0;
+      }
+
+      // Wählt aus den Deutungen eines Ergebnisses diejenige mit den meisten
+      // Phrasen-Treffern (so geht ein Treffer nicht verloren, wenn er nur in
+      // einer Alternative steht). Gibt Text und Trefferzahl zurück.
+      function bestAlternative(result) {
+        var bestText = result[0].transcript;
+        var bestN = countMatches(bestText);
+        for (var a = 1; a < result.length; a++) {
+          var t = result[a].transcript;
+          var n = countMatches(t);
+          if (n > bestN) { bestN = n; bestText = t; }
+        }
+        return { text: bestText.trim(), n: bestN };
+      }
+
+      function updateRate() {
+        if (!startTime || hitTimestamps.length === 0) {
+          rateValEl.textContent = "0.0";
+          return;
+        }
+        var minutes = (Date.now() - startTime) / 60000;
+        if (minutes <= 0) { rateValEl.textContent = "0.0"; return; }
+        rateValEl.textContent = (hitTimestamps.length / minutes).toFixed(1);
+      }
+
+      // --- Recognition setup ---
+      function createRecognition() {
+        var r = new SpeechRecognition();
+        r.lang = "de-DE";
+        r.continuous = true;
+        r.interimResults = true;  // Zwischenergebnisse für Live-Anzeige
+        r.maxAlternatives = 5;    // mehrere Deutungen -> bessere Trefferquote
+
+        r.onstart = function () {
+          running = true;
+          lastActivityAt = Date.now();
+          setStatus("listening", "hört zu …");
+        };
+
+        r.onresult = function (event) {
+          lastActivityAt = Date.now();
+          var interimText = "";
+
+          for (var i = event.resultIndex; i < event.results.length; i++) {
+            var result = event.results[i];
+
+            if (result.isFinal) {
+              // Jeden finalen Result-Index nur einmal verarbeiten.
+              if (i <= lastFinalIndex) continue;
+              lastFinalIndex = i;
+
+              // Beste Alternative wählen: enthält eine der Deutungen die Phrase,
+              // zählt sie – auch wenn das Top-Ergebnis sie "wegrevidiert" hat.
+              var alt = bestAlternative(result);
+              addLogEntry(alt.text || "(leer)");
+
+              // Abgleich mit dem live Gezählten dieser Äußerung.
+              var delta = alt.n - utteranceCounted;
+              if (delta > 0) addHits(delta);
+              else if (delta < 0) removeHits(-delta);
+              utteranceCounted = 0;  // Äußerung abgeschlossen
+
+              // Zentrales Log: bestätigte Treffer dieser Äußerung festhalten.
+              if (alt.n > 0) AnderStelleTracker.logHits(alt.n, "auto", SOURCE, sessionId);
+            } else {
+              // Auch im Zwischentext die beste Alternative berücksichtigen.
+              interimText += bestAlternative(result).text + " ";
+            }
+          }
+
+          // Live mitzählen: Treffer sofort erfassen, sobald sie im Zwischentext auftauchen.
+          var interimN = countMatches(interimText);
+          if (interimN > utteranceCounted) {
+            addHits(interimN - utteranceCounted);
+            utteranceCounted = interimN;
+          }
+          // Weniger Treffer im Zwischentext ignorieren wir hier – das finale Ergebnis korrigiert.
+
+          renderLive(interimText.trim());
+          renderCount();
+        };
+
+        r.onerror = function (event) {
+          switch (event.error) {
+            case "no-speech":
+              // harmlos: gerade nichts gehört. onend startet neu.
+              setStatus("listening", "hört zu … (gerade keine Sprache)");
+              break;
+            case "network":
+              // Chrome schickt Audio an Google; Netz-Aussetzer -> neu versuchen.
+              setStatus("error", "Netzwerkfehler – versuche neu zu verbinden …");
+              break;
+            case "audio-capture":
+              setStatus("error", "Fehler: kein Mikrofon gefunden");
+              userStopped = true;
+              listening = false;
+              updateToggle();
+              break;
+            case "not-allowed":
+            case "service-not-allowed":
+              setStatus("error", "Fehler: Mikrofonzugriff verweigert");
+              userStopped = true;
+              listening = false;
+              updateToggle();
+              break;
+            case "aborted":
+              // meist durch Stopp ausgelöst – ignorieren
+              break;
+            default:
+              setStatus("error", "Fehler: " + event.error);
+          }
+          // Bei den nicht-fatalen Fehlern übernimmt onend den Neustart.
+        };
+
+        r.onend = function () {
+          running = false;
+          // Zwischenstand der (abgebrochenen) Session verwerfen.
+          lastFinalIndex = -1;
+          utteranceCounted = 0;
+          renderLive("");
+          renderCount();
+
+          if (!userStopped) {
+            // Automatischer Neustart, solange der Nutzer nicht gestoppt hat.
+            scheduleRestart();
+          } else {
+            listening = false;
+            setStatus("paused", "pausiert");
+            updateToggle();
+          }
+        };
+
+        return r;
+      }
+
+      // Verzögerter, robuster Neustart. Chrome wirft bei zu schnellem start()
+      // nach onend eine Exception – deshalb mit kleiner Verzögerung und Retry.
+      function scheduleRestart(delay) {
+        if (restartTimer) return;  // schon ein Neustart geplant
+        restartTimer = setTimeout(function () {
+          restartTimer = null;
+          if (userStopped || !listening) return;
+          if (running) return;  // läuft bereits wieder
+          try {
+            recognition.start();
+            lastActivityAt = Date.now();
+            setStatus("listening", "hört zu …");
+          } catch (e) {
+            // Session noch nicht sauber beendet – später erneut versuchen.
+            scheduleRestart(500);
+          }
+        }, delay || 300);
+      }
+
+      function start() {
+        if (listening) return;
+        if (!recognition) recognition = createRecognition();
+        userStopped = false;
+        listening = true;
+        lastFinalIndex = -1;
+        utteranceCounted = 0;
+        lastActivityAt = Date.now();
+        renderLive("");
+        if (!startTime) startTime = Date.now();
+        sessionId = AnderStelleTracker.startSession(SOURCE);  // Laufzeit zentral protokollieren
+        try {
+          recognition.start();
+          setStatus("listening", "hört zu …");
+        } catch (e) {
+          // kann werfen, wenn schon gestartet – Watchdog/onend fangen das ab
+          setStatus("listening", "hört zu …");
+        }
+        updateToggle();
+      }
+
+      function stop() {
+        userStopped = true;
+        listening = false;
+        if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+        if (recognition) {
+          try { recognition.stop(); } catch (e) {}
+        }
+        AnderStelleTracker.endSession(sessionId);  // Laufzeit-Ende festhalten
+        sessionId = null;
+        setStatus("paused", "pausiert");
+        updateToggle();
+      }
+
+      function updateToggle() {
+        toggleBtn.textContent = listening ? "⏸ Stopp" : "▶︎ Start";
+      }
+
+      // --- Events ---
+      toggleBtn.addEventListener("click", function () {
+        if (listening) stop(); else start();
+      });
+
+      resetBtn.addEventListener("click", function () {
+        count = 0;
+        utteranceCounted = 0;
+        prevCount = 0;
+        renderCount();
+        localStorage.setItem(STORAGE_KEY, "0");
+        hitTimestamps = [];
+        startTime = listening ? Date.now() : null;
+        renderLive("");
+        tsEl.innerHTML = '<li class="empty">Noch keine Treffer.</li>';
+        logEl.innerHTML = '<li class="empty">Noch nichts erkannt…</li>';
+        rateValEl.textContent = "0.0";
+      });
+
+      // Manuelle Korrektur: Treffer von Hand hinzufügen …
+      plusBtn.addEventListener("click", function () {
+        if (!startTime) startTime = Date.now();  // Startzeit für die Rate
+        addHits(1);     // zählt, speichert und ergänzt einen Zeitstempel
+        renderCount();  // Anzeige + Aufleuchten
+        AnderStelleTracker.logHits(1, "manual", SOURCE, sessionId);
+      });
+
+      // … oder abziehen (nicht unter 0; entfernt den jüngsten Zeitstempel).
+      minusBtn.addEventListener("click", function () {
+        if (count <= 0) return;
+        removeHits(1);
+        renderCount();
+        AnderStelleTracker.logUndo(1, SOURCE, sessionId);
+      });
+
+      // Rate periodisch aktualisieren + laufende Session „am Leben" halten.
+      setInterval(function () {
+        if (listening) { updateRate(); AnderStelleTracker.touchSession(sessionId); }
+      }, 5000);
+
+      // Beim Verlassen der Seite die laufende Session sauber beenden.
+      window.addEventListener("pagehide", function () {
+        if (sessionId) AnderStelleTracker.endSession(sessionId);
+      });
+
+      // Watchdog: Wenn zugehört werden soll, die Session aber nicht läuft und kein
+      // Neustart ansteht, Neustart anstoßen. Fängt stilles Beenden durch Chrome ab.
+      setInterval(function () {
+        if (!listening || userStopped) return;
+        if (!running && !restartTimer) {
+          scheduleRestart(200);
+        }
+      }, 3000);
+
+      // Wenn der Tab wieder in den Vordergrund kommt, Erkennung sicherstellen.
+      document.addEventListener("visibilitychange", function () {
+        if (!document.hidden && listening && !userStopped && !running && !restartTimer) {
+          scheduleRestart(200);
+        }
+      });
+
+      // --- Init ---
+      renderCount();
+      renderLive("");
+      updateToggle();
+    })();
+  </script>
+</body>
+</html>
