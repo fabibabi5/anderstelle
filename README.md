@@ -86,6 +86,46 @@ Ohne eigene Medien feiern große Wal-Emoji 🐳🐋 mit. Videos werden stummgesc
 abgespielt (für zuverlässiges Autoplay); den Partysound liefert das Airhorn, das
 sich oben per „🔊 Sound" an-/ausschalten lässt.
 
+## 🔍 Diagnose-Modus
+
+In `index.html` und `wal-party.html` öffnet der Button **„🔍 Diagnose"** (unten links)
+ein Panel, das zeigt, was die Spracherkennung tatsächlich versteht:
+
+- jeder erkannte Satz inkl. Alternativen und Konfidenz – Treffer ✅ grün,
+  **Beinahe-Treffer** 🤔 (z. B. „an dieser Stelle", „Schelle") gelb
+- Start/Ende der Erkennung, Fehler (`network`, `no-speech` …) und **Hörlücken**
+  (Zeit, in der nichts erkannt werden konnte)
+- ein Mikrofon-Pegel (nur solange das Panel offen ist)
+- **⬇ Export** als `.txt`, um das Log z. B. weiterzugeben
+
+Das Log lebt nur im Arbeitsspeicher und wird nicht gespeichert.
+
+**Mac-Tipp:** Während Chrome das Mikrofon nutzt, im Kontrollzentrum unter
+„Mikrofonmodus" **Standard** oder **Breites Spektrum** wählen – „Sprachisolierung"
+filtert entfernte Sprecher (den Dozenten!) heraus.
+
+## ⏳ Countdown: `countdown.html`
+
+Countdown bis zum Vorlesungsende (Beginn/Ende einstellen oder „90 min ab jetzt").
+Dabei passiert ständig irgendein Unsinn:
+
+- **jede volle Minute** eine (mehr oder weniger) motivierende Durchsage
+- **Schnapszahl-Sekunden** (:11, :22, :33, :44, :55), **Echo** (23:23),
+  **Palindrome** (12:21), **Treppen** (12:34), **Raketenstarts** (43:21)
+- **Minuten-Themen**, die eine ganze Minute dauern – z. B. 99 🎈, 69 😎, 67 🫴🫳,
+  42 🐋🪴, 23 🔺, 13 🐈‍⬛, 11 ✨, 7 🕵️, 1 🚨
+- **Restsekunden-Memes**: …67, …69, 3141 (π), 1337 (Matrix), 777 (Jackpot),
+  666, 404, 300 (Sparta), 100 💯 …
+- **Uhrzeit-Gags** (11:11, 12:34, 13:37, volle Stunde) und **Fortschritts-Meilensteine**
+  (Halbzeit, 67 %, 69 %, 99 %-Windows-Ladebalken)
+- **Zufalls-Gags** alle 15–40 s: Fake-Windows-Update, „Dozent.exe reagiert nicht",
+  Comic Sans, Enten-Parade, Latein-/Binär-Modus, Wal-Fakten …
+- die letzten 10 Sekunden riesig, danach Party und **Überziehungs-Zähler**
+- liest den „an der Stelle"-Zähler mit und feiert jeden neuen Treffer
+
+Ton ist standardmäßig aus. Zum Ausprobieren im Zeitraffer:
+`countdown.html?demo=4030&speed=10` (Ende in 4030 s, 10-fache Geschwindigkeit).
+
 ## 📊 Zentrales Treffer-Log & Auswertung
 
 Alle Versionen schreiben in **ein** gemeinsames, dauerhaftes Log im Browser

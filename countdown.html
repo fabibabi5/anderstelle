@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>⏳ Vorlesungs-Countdown 🐳</title>
+  <style>
+    :root {
+      --text: #eafcff;
+      --muted: #9fd3e0;
+      --accent: #5ff0d8;
+      --hot: #ff6b6b;
+      --gold: #ffd166;
+      --panel: rgba(3, 32, 48, 0.55);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; min-height: 100%; }
+    body {
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh; overflow-x: hidden; position: relative;
+      background: linear-gradient(180deg, #021b2e 0%, #043b57 45%, #06607e 100%);
+      transition: background 0.8s ease;
+    }
+    body::before {
+      content: ""; position: fixed; inset: -20%; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(circle at 20% 30%, rgba(95,240,216,0.16), transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(90,169,255,0.16), transparent 42%);
+      animation: drift 16s ease-in-out infinite alternate;
+    }
+    @keyframes drift { from { transform: translate(-3%,-2%); } to { transform: translate(3%,2%) scale(1.1); } }
+
+    #bubbles, #walkers, #rain { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+    #bubbles { z-index: 1; }
+    #walkers { z-index: 40; }
+    #rain    { z-index: 45; }
+    #confetti { position: fixed; inset: 0; z-index: 55; pointer-events: none; }
+    #fx { position: fixed; inset: 0; z-index: 60; pointer-events: none; overflow: hidden; }
+    #overlay { position: fixed; inset: 0; z-index: 70; display: none; align-items: center; justify-content: center; }
+    #overlay.on { display: flex; }
+
+    .bubble { position: absolute; bottom: -40px; border-radius: 50%; opacity: 0.45;
+              background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.6), rgba(255,255,255,0.06));
+              animation: rise linear infinite; }
+    @keyframes rise { to { transform: translateY(-115vh); opacity: 0; } }
+
+    /* ---------- Hauptbereich ---------- */
+    .world { position: relative; z-index: 10; min-height: 100vh; display: flex; flex-direction: column;
+             align-items: center; justify-content: center; gap: 16px; padding: 24px 16px 40px; }
+    h1 { margin: 0; font-size: clamp(1rem, 3vw, 1.5rem); font-weight: 800; text-align: center;
+         text-shadow: 0 2px 14px rgba(0,0,0,0.4); }
+    h1 span { color: var(--accent); }
+
+    #timerWrap { position: relative; transform-origin: center; }
+    #timer {
+      font-size: clamp(5rem, 22vw, 17rem); font-weight: 900; line-height: 1; letter-spacing: -3px;
+      font-variant-numeric: tabular-nums; color: #fff; text-align: center; user-select: none;
+      text-shadow: 0 0 40px rgba(95,240,216,0.75), 0 6px 0 rgba(0,0,0,0.2);
+      transition: color 0.4s ease;
+    }
+    #timer .colon { animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0.25; } }
+    #timer.over { color: var(--hot); text-shadow: 0 0 40px rgba(255,107,107,0.8); }
+    #timerSub { text-align: center; color: var(--muted); font-size: clamp(0.9rem, 2.4vw, 1.15rem);
+                font-variant-numeric: tabular-nums; margin-top: 6px; }
+
+    /* Fortschritt: Wal schwimmt zur Insel */
+    #track { position: relative; width: min(760px, 92vw); height: 46px; margin-top: 4px; }
+    #track .line { position: absolute; left: 0; right: 36px; top: 50%; height: 8px; margin-top: -4px;
+                   border-radius: 4px; background: rgba(255,255,255,0.12); overflow: hidden; }
+    #track .fill { height: 100%; width: 0; background: linear-gradient(90deg, #2e7dff, #5ff0d8); transition: width 1s linear; }
+    #track .swimmer { position: absolute; top: 50%; font-size: 2rem; transform: translate(-50%, -55%) scaleX(-1);
+                      transition: left 1s linear; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)); }
+    #track .goal { position: absolute; right: 0; top: 50%; transform: translateY(-55%); font-size: 2rem; }
+    body.p99 #track .fill { animation: stuck 1.2s ease-in-out infinite; }
+    @keyframes stuck { 50% { filter: brightness(1.8); } }
+
+    .row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; align-items: center; }
+    .pill { background: var(--panel); border: 1px solid rgba(255,255,255,0.08); border-radius: 999px;
+            padding: 8px 16px; font-weight: 700; font-size: 0.95rem; }
+    .pill b { color: var(--accent); font-variant-numeric: tabular-nums; }
+
+    #toasts { display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 2.6em; }
+    .toast { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px;
+             padding: 7px 14px; font-weight: 700; font-size: 1rem; text-align: center;
+             animation: toastIn 0.35s cubic-bezier(.2,1.5,.3,1), toastOut 0.5s ease forwards; }
+    @keyframes toastIn { from { transform: translateY(12px) scale(0.8); opacity: 0; } }
+    @keyframes toastOut { to { opacity: 0; transform: translateY(-8px); } }
+
+    #ticker { color: var(--muted); font-size: 0.85rem; text-align: center; max-width: 760px; min-height: 1.3em; }
+
+    /* Einstellungen */
+    .settings { margin-top: 10px; background: var(--panel); border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 16px; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 10px;
+                align-items: center; justify-content: center; max-width: 820px; }
+    .settings label { font-size: 0.9rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    input[type=time] { font: inherit; font-size: 1rem; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+                       background: rgba(255,255,255,0.08); color: var(--text); color-scheme: dark; }
+    button { font: inherit; font-size: 0.92rem; font-weight: 700; padding: 8px 14px; border: none; border-radius: 10px;
+             cursor: pointer; color: #022; background: var(--accent); }
+    button.sec { background: rgba(255,255,255,0.12); color: var(--text); }
+    button:hover { filter: brightness(1.1); }
+    footer { color: var(--muted); font-size: 0.82rem; text-align: center; }
+    footer a { color: var(--accent); }
+
+    /* ---------- Effekt-Bausteine ---------- */
+    .say { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); white-space: nowrap;
+           font-weight: 900; text-align: center; color: #fff; font-size: clamp(2rem, 8vw, 5.5rem);
+           text-shadow: 0 0 30px rgba(95,240,216,0.9), 0 6px 0 rgba(0,0,0,0.3);
+           animation: sayPop var(--ms, 2600ms) cubic-bezier(.2,1.3,.3,1) forwards; }
+    .say small { display: block; font-size: 0.38em; font-weight: 700; opacity: 0.9; margin-top: 0.2em; white-space: normal; }
+    @keyframes sayPop {
+      0% { opacity: 0; transform: translate(-50%,-50%) scale(0.2) rotate(-8deg); }
+      12% { opacity: 1; transform: translate(-50%,-50%) scale(1.12) rotate(2deg); }
+      22% { transform: translate(-50%,-50%) scale(1) rotate(0); }
+      82% { opacity: 1; }
+      100% { opacity: 0; transform: translate(-50%,-50%) scale(1.08); }
+    }
+    .drop { position: absolute; top: -60px; line-height: 1; animation: fallDown linear forwards; }
+    @keyframes fallDown { to { transform: translateY(115vh) rotate(var(--rot, 360deg)); } }
+    .float { position: absolute; bottom: -80px; line-height: 1; animation: floatUp linear forwards; }
+    @keyframes floatUp { to { transform: translateY(-120vh) translateX(var(--sway, 30px)); } }
+    .walker { position: absolute; line-height: 1; animation: walk linear forwards; white-space: nowrap; }
+    @keyframes walk { from { transform: translateX(var(--from)); } to { transform: translateX(var(--to)); } }
+    .hopper { display: inline-block; animation: hop 0.45s ease-in-out infinite alternate; }
+    @keyframes hop { to { transform: translateY(-14px); } }
+    .flip { display: inline-block; transform: scaleX(-1); }
+    .pop { position: absolute; line-height: 1; animation: popOut 1.4s ease-out forwards; }
+    @keyframes popOut { 0% { transform: scale(0) rotate(-20deg); opacity: 1; } 30% { transform: scale(1.3) rotate(10deg); }
+                        100% { transform: scale(1) translateY(-60px); opacity: 0; } }
+
+    /* Timer-Effekte */
+    #timerWrap.wobble67 { animation: weigh 0.7s ease-in-out infinite; }
+    @keyframes weigh { 0%,100% { transform: rotate(0) translateY(0); } 25% { transform: rotate(-7deg) translateY(-10px); }
+                       75% { transform: rotate(7deg) translateY(10px); } }
+    #timerWrap.mirror { animation: mirror 2.4s ease forwards; }
+    @keyframes mirror { 0%,100% { transform: scaleX(1); } 25%,75% { transform: scaleX(-1); } }
+    #timerWrap.upside { transform: rotate(180deg); transition: transform 0.6s cubic-bezier(.3,1.5,.4,1); }
+    #timerWrap.bounce { animation: bounceT 0.6s cubic-bezier(.3,1.8,.4,1); }
+    @keyframes bounceT { 40% { transform: translateY(-30px) scale(1.06); } }
+    #timerWrap.stairs { animation: stairs 1.6s steps(4) forwards; }
+    @keyframes stairs { 0% { transform: translate(-60px, 60px); } 100% { transform: translate(0, 0); } }
+    #timerWrap.rocket { animation: rocket 2.2s cubic-bezier(.6,0,.9,.4) forwards; }
+    @keyframes rocket { 0% { transform: translateY(0); } 15% { transform: translateY(6px); } 70% { transform: translateY(-120vh); opacity: 1; }
+                        71% { opacity: 0; } 72% { transform: translateY(40vh); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+    #timerWrap.zoom { animation: zoomT 2.5s ease forwards; }
+    @keyframes zoomT { 30%,70% { transform: scale(1.9); } }
+    #timerWrap.quake { animation: quake 0.12s linear 18; }
+    @keyframes quake { 25% { transform: translate(-9px, 4px) rotate(-1deg); } 75% { transform: translate(9px, -4px) rotate(1deg); } }
+    #timerWrap.heartbeat { animation: heart 1s ease-in-out infinite; }
+    @keyframes heart { 0%,100% { transform: scale(1); } 15% { transform: scale(1.08); } 30% { transform: scale(0.98); } 45% { transform: scale(1.06); } }
+    #timerWrap.echo #timer { text-shadow: 30px 0 0 rgba(95,240,216,0.4), 60px 0 0 rgba(95,240,216,0.2), -30px 0 0 rgba(95,240,216,0.4), -60px 0 0 rgba(95,240,216,0.2); }
+    #timerWrap.spin { animation: spinT 1.2s cubic-bezier(.5,0,.3,1); }
+    @keyframes spinT { to { transform: rotate(360deg); } }
+    #timerWrap.squish { animation: squish 0.9s ease; }
+    @keyframes squish { 30% { transform: scale(1.4, 0.6); } 60% { transform: scale(0.8, 1.25); } }
+    #timerWrap.melt #timer { animation: melt 3s ease forwards; }
+    @keyframes melt { 50% { transform: scaleY(1.6) skewX(10deg); filter: blur(2px); color: var(--gold); } }
+    #timerWrap.digits-hot #timer .s { color: var(--gold); text-shadow: 0 0 40px var(--gold); }
+    #timerWrap.digits-jump #timer .s { display: inline-block; animation: bounceT 0.6s cubic-bezier(.3,1.8,.4,1); }
+
+    /* Seiten-Modi */
+    body.comic * { font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive !important; }
+    body.mode-hell { background: linear-gradient(180deg, #2b0000, #6b0a0a 60%, #a3220b); }
+    body.mode-matrix { background: #000; }
+    body.mode-matrix #timer, body.mode-matrix h1, body.mode-matrix #timerSub { color: #39ff14 !important; font-family: "Courier New", monospace;
+                                                                               text-shadow: 0 0 20px #39ff14; }
+    body.mode-synth { background: linear-gradient(180deg, #1a0033 0%, #4b0a5e 55%, #ff2a6d 100%); }
+    body.mode-synth #timer { color: #ffe0f7; text-shadow: 0 0 30px #ff2a6d, 0 0 60px #05d9e8; font-style: italic; }
+    body.mode-dark .world { filter: brightness(0.55); }
+    body.mode-pixel #timer { font-family: "Courier New", monospace; letter-spacing: 4px; text-shadow: 6px 6px 0 #2e7dff, 12px 12px 0 #c77dff; }
+    body.mode-panic { animation: panicBg 1s ease-in-out infinite; }
+    @keyframes panicBg { 50% { background: linear-gradient(180deg, #3a0612, #6b1020 60%, #8f1d2c); } }
+    body.mode-gold #timer { color: var(--gold); text-shadow: 0 0 50px var(--gold), 0 0 100px #ff9f1c; }
+    body.mode-disco { animation: disco 0.5s steps(1) infinite; }
+    @keyframes disco { 0% { background: #2e0854; } 25% { background: #00303f; } 50% { background: #3d0030; } 75% { background: #002a1a; } }
+    body.mode-nice #timer::after { content: " 😎"; font-size: 0.4em; vertical-align: middle; }
+    body.mode-spooky { background: linear-gradient(180deg, #000, #1a1a2e); }
+    body.mode-glitch #timer { animation: glitch 0.25s steps(2) infinite; }
+    @keyframes glitch { 0% { transform: translate(3px,-2px); text-shadow: -6px 0 #ff2a6d, 6px 0 #05d9e8; }
+                        100% { transform: translate(-3px,2px); text-shadow: 6px 0 #ff2a6d, -6px 0 #05d9e8; } }
+    body.mode-tilt .world { transform: rotate(-4deg); transition: transform 0.6s ease; }
+
+    /* Overlays (Fake-Dialoge) */
+    .dialog { background: #f0f0f0; color: #111; border-radius: 10px; width: min(440px, 90vw); box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+              font-family: "Segoe UI", -apple-system, sans-serif; overflow: hidden; animation: toastIn 0.3s ease; }
+    .dialog .bar { background: #2b5797; color: #fff; padding: 8px 12px; font-size: 0.9rem; font-weight: 600; }
+    .dialog .body { padding: 18px; font-size: 1rem; line-height: 1.4; }
+    .dialog .btns { display: flex; justify-content: flex-end; gap: 8px; padding: 0 18px 16px; }
+    .dialog .btns span { background: #ddd; border: 1px solid #aaa; border-radius: 4px; padding: 6px 16px; font-size: 0.9rem; }
+    .winupdate { position: fixed; inset: 0; background: #0063b1; color: #fff; display: flex; flex-direction: column; align-items: center;
+                 justify-content: center; gap: 18px; font-family: "Segoe UI", sans-serif; text-align: center; padding: 20px; }
+    .winupdate .spinner { width: 54px; height: 54px; border-radius: 50%; border: 5px solid rgba(255,255,255,0.25); border-top-color: #fff; animation: spinT 1s linear infinite; }
+    .slot { display: flex; gap: 12px; padding: 18px 22px; border-radius: 20px; background: linear-gradient(#ffd166, #ff9f1c); box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+    .slot div { width: 1.3em; height: 1.3em; overflow: hidden; font-size: clamp(3rem, 12vw, 6rem); background: #fff; border-radius: 12px; text-align: center; line-height: 1.3em; }
+    .slot div span { display: block; animation: reel 0.12s linear infinite; }
+    @keyframes reel { from { transform: translateY(-50%); } to { transform: translateY(0); } }
+    .bond { width: 50vmin; height: 50vmin; border-radius: 50%; background: radial-gradient(circle, #fff 0 18%, #000 19% 100%);
+            box-shadow: 0 0 0 100vmax #000; animation: bondMove 2.6s ease-in-out forwards; }
+    @keyframes bondMove { 0% { transform: translateX(-60vw); } 60% { transform: translateX(0); } 85% { background: radial-gradient(circle, #b00 0 100%); } 100% { opacity: 0; } }
+    .gauge { width: min(420px, 85vw); background: rgba(0,0,0,0.6); border-radius: 16px; padding: 16px; text-align: center; font-weight: 800; }
+    .gauge .bar2 { height: 18px; border-radius: 9px; background: rgba(255,255,255,0.15); margin-top: 10px; overflow: hidden; }
+    .gauge .bar2 i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #ff6b6b, #ffd166, #51cf66); animation: drain 3.2s ease-in forwards; }
+    @keyframes drain { to { width: 3%; } }
+    .marquee { position: absolute; top: 10px; white-space: nowrap; font-weight: 800; font-size: 1.3rem; color: #51cf66;
+               background: rgba(0,0,0,0.55); padding: 6px 14px; border-radius: 8px; animation: walk 9s linear forwards; }
+    .bignum { position: absolute; left: 50%; top: 50%; font-size: 60vmin; font-weight: 900; color: #fff;
+              text-shadow: 0 0 80px rgba(255,107,107,0.9); transform: translate(-50%, -50%);
+              animation: bignum 0.95s ease-out forwards; }
+    @keyframes bignum { from { transform: translate(-50%,-50%) scale(2.2); opacity: 0.95; } to { transform: translate(-50%,-50%) scale(0.6); opacity: 0; } }
+    .shoot { position: absolute; width: 140px; height: 3px; border-radius: 3px; background: linear-gradient(90deg, transparent, #fff);
+             animation: shoot 1.1s ease-out forwards; }
+    @keyframes shoot { from { transform: translate(0,0) rotate(20deg); opacity: 1; } to { transform: translate(60vw, 22vw) rotate(20deg); opacity: 0; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      #timerWrap[class] , body.mode-panic, body.mode-disco, body.mode-glitch #timer { animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="bubbles"></div>
+  <div id="walkers"></div>
+  <div id="rain"></div>
+  <canvas id="confetti"></canvas>
+  <div id="fx"></div>
+  <div id="overlay"></div>
+
+  <div class="world">
+    <h1>⏳ Noch bis <span>Vorlesungsende</span> 🐳</h1>
+
+    <div id="timerWrap"><div id="timer">--:--</div></div>
+    <div id="timerSub">Zeit einstellen ↓</div>
+
+    <div id="track">
+      <div class="line"><div class="fill"></div></div>
+      <div class="swimmer">🐳</div>
+      <div class="goal">🏝️</div>
+    </div>
+
+    <div class="row">
+      <div class="pill">„an der Stelle“ bisher: <b id="ads">0</b></div>
+      <div class="pill">Geschafft: <b id="pct">0 %</b></div>
+      <div class="pill">Uhrzeit: <b id="clock">--:--</b></div>
+    </div>
+
+    <div id="toasts"></div>
+    <div id="ticker"></div>
+
+    <div class="settings">
+      <label>Beginn <input type="time" id="begin" /></label>
+      <label>Ende <input type="time" id="end" /></label>
+      <button id="p90">90 min ab jetzt</button>
+      <button id="p45" class="sec">45 min ab jetzt</button>
+      <button id="gag" class="sec" title="Zufälligen Gag auslösen">🎲 Gag</button>
+      <button id="sound" class="sec">🔇 Ton aus</button>
+    </div>
+
+    <footer>
+      Ton ist standardmäßig aus (Vorlesung!). ·
+      <a href="wal-party.html">🐳 Wal-Party</a> · <a href="index.html">Zähler</a> · <a href="auswertung.html">📊 Auswertung</a>
+    </footer>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    // ================= Zeit =================
+    var STORE = "anderstelle.countdown";
+    var params = new URLSearchParams(location.search);
+    var SPEED = Math.max(1, parseFloat(params.get("speed")) || 1);   // ?speed=30 -> Zeitraffer zum Ausprobieren
+    var realStart = Date.now();
+    function now() { return realStart + (Date.now() - realStart) * SPEED; }
+
+    var cfg = load();
+    if (params.get("demo")) {                                          // ?demo=4100 -> Ende in 4100 s
+      cfg = { begin: now(), end: now() + parseInt(params.get("demo"), 10) * 1000 };
+    }
+    function load() {
+      try { var o = JSON.parse(localStorage.getItem(STORE)); if (o && o.end > 0) return o; } catch (e) {}
+      return { begin: Date.now(), end: Date.now() + 90 * 60000 };
+    }
+    function save() { try { localStorage.setItem(STORE, JSON.stringify(cfg)); } catch (e) {} }
+
+    // ================= DOM =================
+    var $ = function (id) { return document.getElementById(id); };
+    var timerEl = $("timer"), wrapEl = $("timerWrap"), subEl = $("timerSub"), fx = $("fx"), rainEl = $("rain"),
+        walkersEl = $("walkers"), overlay = $("overlay"), toastsEl = $("toasts"), tickerEl = $("ticker"),
+        fillEl = document.querySelector("#track .fill"), swimEl = document.querySelector("#track .swimmer");
+
+    function pad(n) { n = Math.abs(n); return (n < 10 ? "0" : "") + n; }
+    function rnd(a) { return a[(Math.random() * a.length) | 0]; }
+    function rint(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+    function later(ms, fn) { return setTimeout(fn, ms); }
+
+    // ================= Effekt-Bausteine =================
+    function say(html, ms, style) {
+      // Großer Text in der Mitte ersetzt den vorherigen (sonst Textsalat bei gleichzeitigen Ereignissen)
+      if (!style || !style.top) {
+        Array.prototype.forEach.call(fx.querySelectorAll(".say.main"), function (o) { o.remove(); });
+      }
+      var d = document.createElement("div");
+      d.className = "say" + (!style || !style.top ? " main" : "");
+      d.innerHTML = html;
+      ms = ms || 2600;
+      d.style.setProperty("--ms", ms + "ms");
+      if (style) for (var k in style) d.style[k] = style[k];
+      fx.appendChild(d);
+      later(ms + 50, function () { d.remove(); });
+      return d;
+    }
+    function toast(text, ms) {
+      var t = document.createElement("div");
+      t.className = "toast";
+      t.textContent = text;
+      ms = ms || 4000;
+      t.style.animationDelay = "0s, " + (ms - 500) + "ms";
+      toastsEl.appendChild(t);
+      while (toastsEl.children.length > 3) toastsEl.removeChild(toastsEl.firstChild);
+      later(ms, function () { t.remove(); });
+    }
+    function log(name) {
+      tickerEl.textContent = "Zuletzt: " + name + " (" + clockStr(new Date(now())) + ")";
+    }
+    function rain(list, n, opts) {
+      opts = opts || {};
+      for (var i = 0; i < n; i++) {
+        var e = document.createElement("div");
+        var up = opts.up;
+        e.className = up ? "float" : "drop";
+        e.textContent = rnd(list);
+        e.style.left = (Math.random() * 96) + "vw";
+        e.style.fontSize = (opts.size || 2) * (0.7 + Math.random() * 0.8) + "rem";
+        var dur = (opts.dur || 3) * (0.7 + Math.random() * 0.6), delay = Math.random() * (opts.spread || 1.2);
+        e.style.animationDuration = dur + "s";
+        e.style.animationDelay = delay + "s";
+        e.style.setProperty("--rot", (opts.spin === false ? 0 : rint(-400, 400)) + "deg");
+        e.style.setProperty("--sway", rint(-80, 80) + "px");
+        rainEl.appendChild(e);
+        (function (el, ms) { later(ms, function () { el.remove(); }); })(e, (dur + delay) * 1000 + 100);
+      }
+    }
+    // Etwas läuft quer über den Bildschirm
+    function walk(content, opts) {
+      opts = opts || {};
+      var w = document.createElement("div");
+      w.className = "walker";
+      w.innerHTML = opts.hop ? '<span class="hopper">' + content + "</span>" : content;
+      var ltr = opts.dir !== "rtl";
+      w.style.setProperty("--from", ltr ? "-30vw" : "110vw");
+      w.style.setProperty("--to", ltr ? "110vw" : "-30vw");
+      w.style.left = "0";
+      if (opts.top != null) w.style.top = opts.top; else w.style.bottom = opts.bottom || "4vh";
+      w.style.fontSize = (opts.size || 3) + "rem";
+      var dur = opts.dur || 6;
+      w.style.animationDuration = dur + "s";
+      walkersEl.appendChild(w);
+      later(dur * 1000 + 100, function () { w.remove(); });
+      return w;
+    }
+    function popAt(emoji, x, y, size) {
+      var p = document.createElement("div");
+      p.className = "pop";
+      p.textContent = emoji;
+      p.style.left = x; p.style.top = y; p.style.fontSize = (size || 2.5) + "rem";
+      fx.appendChild(p);
+      later(1500, function () { p.remove(); });
+    }
+    function popAround(list, n) {
+      var r = wrapEl.getBoundingClientRect();
+      for (var i = 0; i < n; i++) {
+        popAt(rnd(list), (r.left + Math.random() * r.width) + "px", (r.top + Math.random() * r.height) + "px", 2 + Math.random() * 2);
+      }
+    }
+    var timerFxTimer = {};
+    function timerFx(cls, ms) {
+      wrapEl.classList.remove(cls); void wrapEl.offsetWidth; wrapEl.classList.add(cls);
+      clearTimeout(timerFxTimer[cls]);
+      timerFxTimer[cls] = later(ms || 1500, function () { wrapEl.classList.remove(cls); });
+    }
+    var modeTimer = {};
+    function mode(cls, ms) {
+      document.body.classList.add(cls);
+      clearTimeout(modeTimer[cls]);
+      if (ms) modeTimer[cls] = later(ms, function () { document.body.classList.remove(cls); });
+    }
+    function showOverlay(html, ms) {
+      overlay.innerHTML = html;
+      overlay.classList.add("on");
+      clearTimeout(showOverlay.t);
+      showOverlay.t = later(ms, function () { overlay.classList.remove("on"); overlay.innerHTML = ""; });
+    }
+    // Zeit-Format-Spielereien (römisch, binär, …)
+    var fmtMode = null, fmtUntil = 0;
+    function fmt(m, ms) { fmtMode = m; fmtUntil = Date.now() + ms; }
+
+    // ----- Konfetti -----
+    var cv = $("confetti"), cx = cv.getContext("2d"), parts = [], cRun = false;
+    function resize() { cv.width = innerWidth; cv.height = innerHeight; }
+    resize(); addEventListener("resize", resize);
+    var COLORS = ["#5ff0d8", "#3fd0ff", "#5aa9ff", "#ffd166", "#ff6b6b", "#c77dff", "#ffffff"];
+    function confetti(n, x, y) {
+      x = x == null ? innerWidth / 2 : x; y = y == null ? innerHeight / 2 : y;
+      for (var i = 0; i < n; i++) parts.push({ x: x, y: y, vx: (Math.random() - 0.5) * 18, vy: -Math.random() * 16 - 3,
+        g: 0.32, s: 5 + Math.random() * 8, r: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, c: rnd(COLORS), l: 140 });
+      if (parts.length > 800) parts.splice(0, parts.length - 800);
+      if (!cRun) { cRun = true; requestAnimationFrame(step); }
+    }
+    function step() {
+      cx.clearRect(0, 0, cv.width, cv.height);
+      for (var i = parts.length - 1; i >= 0; i--) {
+        var p = parts[i];
+        p.vy += p.g; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.l--;
+        if (p.l <= 0 || p.y > cv.height + 40) { parts.splice(i, 1); continue; }
+        cx.save(); cx.translate(p.x, p.y); cx.rotate(p.r); cx.fillStyle = p.c;
+        cx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6); cx.restore();
+      }
+      if (parts.length) requestAnimationFrame(step); else { cRun = false; cx.clearRect(0, 0, cv.width, cv.height); }
+    }
+
+    // ----- Ton (standardmäßig aus) -----
+    var soundOn = false, actx = null;
+    function blip(freqs, dur) {
+      if (!soundOn) return;
+      try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+      var t = actx.currentTime;
+      [].concat(freqs).forEach(function (f, i) {
+        var o = actx.createOscillator(), g = actx.createGain();
+        o.type = "triangle"; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t + i * 0.12);
+        g.gain.exponentialRampToValueAtTime(0.15, t + i * 0.12 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.12 + (dur || 0.25));
+        o.connect(g); g.connect(actx.destination);
+        o.start(t + i * 0.12); o.stop(t + i * 0.12 + (dur || 0.25) + 0.05);
+      });
+    }
+
+    // ================= Texte & Pools =================
+    var MINUTE_MSGS = [
+      "Noch {m} Minuten. Du schaffst das. 💪", "Wal-Status: wach 🐳 (knapp)", "Kaffee-Level: kritisch ☕",
+      "Noch {m} Minuten = {f} Folien (geschätzt) 📊", "Noch {m} Minuten. Das sind {sec} Sekunden. Sorry. 🙃",
+      "Gehirn speichert … 🧠💾", "Sitzposition wechseln empfohlen 🪑", "Noch {m} Minuten bis zur Freiheit 🕊️",
+      "Mensa-Countdown läuft 🍝", "Fun Fact: Die Uhr tickt auch, wenn du nicht hinschaust ⏰",
+      "Noch {m} Minuten — so lang wie {e} Folgen Spongebob 🧽", "Achtung: Gähnwelle aus Reihe 3 🌊😮‍💨",
+      "Bitte weiter so tun, als würdest du mitschreiben ✍️", "Noch {m} Minuten. Ein Blauwal schwimmt in der Zeit {km} km 🐋",
+      "Laptop-Akku hält länger als diese Vorlesung? 🔋", "Wenn du das liest, guckst du nicht nach vorne 👀"
+    ];
+    var WHALE_FACTS = [
+      "Ein Blauwal-Herz ist so groß wie ein Kleinwagen 🚗", "Blauwale sind lauter als ein Düsenjet ✈️",
+      "Pottwale schlafen senkrecht im Wasser 😴", "Buckelwale singen Lieder, die sich jedes Jahr ändern 🎶",
+      "Die Zunge eines Blauwals wiegt so viel wie ein Elefant 🐘", "Wale stammen von Landtieren ab 🦛",
+      "Grönlandwale können über 200 Jahre alt werden 🎂", "Ein Wal-Pups ist ein offizieller Forschungsgegenstand 💨"
+    ];
+    var LECTURE_LINES = [
+      "„Das ist klausurrelevant.“ 📝", "„Nur noch eine Folie …“ 🖼️", "„Gibt es dazu Fragen?“ 🦗 *zirp zirp*",
+      "„Wie gesagt …“ 🔁", "„Das hatten wir letzte Woche schon.“ 🤨", "„Ich überziehe nur ganz kurz.“ ⏰",
+      "„An der Stelle …“ 🐳🐳🐳"
+    ];
+    var SCHNAPS = { 11: ["🍻", "Elf-Sekunde!"], 22: ["🦢🦢", "Zwei Schwäne!"], 33: ["🎳", "Dreiunddreißig!"],
+                    44: ["🍀", "Vier-Vier!"], 55: ["🖐️🖐️", "High Five ×2!"] };
+
+    function fill(s, c) {
+      return s.replace("{m}", c.m).replace("{f}", Math.max(1, Math.round(c.m / 2.5)))
+              .replace("{sec}", c.R.toLocaleString("de-DE")).replace("{e}", (c.m / 11).toFixed(1).replace(".", ","))
+              .replace("{km}", Math.round(c.m / 60 * 20));
+    }
+
+    // ================= Zufalls-Gags (alle 15–40 s) =================
+    var GAGS = [
+      ["Wal schwimmt vorbei", function () { walk("🐋", { top: rint(15, 70) + "vh", size: 6, dur: 9, dir: rnd(["ltr", "rtl"]) }); }],
+      ["Enten-Parade", function () { var d = rnd(["ltr", "rtl"]); walk('<span class="' + (d === "ltr" ? "flip" : "") + '">🦆🦆🦆🦆🐥</span>', { size: 2.6, dur: 8, hop: true, dir: d }); toast("Quak. 🦆"); }],
+      ["Schnecken-Rennen", function () { walk('<span class="flip">🐌</span> <small style="font-size:.4em">die Zeit kriecht …</small>', { size: 3, dur: 18 }); }],
+      ["Windows-Update", function () {
+        showOverlay('<div class="winupdate"><div class="spinner"></div><div style="font-size:1.6rem">Vorlesung wird aktualisiert ' + rint(3, 97) +
+          ' %</div><div>Schalten Sie den Hörsaal nicht aus.</div></div>', 3500); }],
+      ["Dozent.exe", function () {
+        showOverlay('<div class="dialog"><div class="bar">Dozent.exe</div><div class="body">⚠️ <b>Dozent.exe</b> reagiert nicht.<br>' +
+          'Wenn Sie das Programm schließen, gehen nicht gespeicherte Folien verloren.</div>' +
+          '<div class="btns"><span>Warten</span><span>Warten</span><span>Länger warten</span></div></div>', 4000); }],
+      ["Comic-Sans-Alarm", function () { mode("comic", 9000); toast("Comic Sans wurde aktiviert. Professionell. 🤡"); }],
+      ["Australien-Modus", function () { timerFx("upside", 5000); toast("Australien-Modus 🦘 G'day!"); }],
+      ["Zeitreise", function () { fmt("glitch", 2500); mode("mode-glitch", 2500); toast("⏪ Zeitreise-Störung …"); }],
+      ["Wal-Fakt", function () { toast("🐳 Wal-Fakt: " + rnd(WHALE_FACTS), 6500); }],
+      ["Dozenten-Bingo", function () { toast(rnd(LECTURE_LINES), 5000); }],
+      ["Wal-Aktie", function () {
+        var m = document.createElement("div"); m.className = "marquee";
+        var v = (Math.random() * 9 + 0.1).toFixed(1).replace(".", ",");
+        m.textContent = "📈 WAL +" + v + " %   📉 MOTIVATION −" + rint(10, 67) + " %   📈 KAFFEE +420 %   📉 KONZENTRATION −99 %   📈 AN-DER-STELLE +6,7 %";
+        m.style.setProperty("--from", "100vw"); m.style.setProperty("--to", "-180vw");
+        fx.appendChild(m); later(9100, function () { m.remove(); }); }],
+      ["Erdbeben", function () { timerFx("quake", 2200); toast("🌋 Leichtes Erdbeben (Stärke 6,7)"); }],
+      ["Dramatischer Zoom", function () { timerFx("zoom", 2600); say("🎬 *dramatische Musik*", 2400, { top: "80%", fontSize: "clamp(1.2rem,4vw,2.2rem)" }); }],
+      ["Katze auf Timer", function () { popAround(["🐈"], 1); toast("Eine Katze hat sich auf die Zeit gesetzt 🐈"); timerFx("squish", 900); }],
+      ["Motivation sinkt", function () { showOverlay('<div class="gauge">🔋 Motivation<div class="bar2"><i></i></div></div>', 3600); }],
+      ["Latein-Modus", function () { fmt("roman", 6000); toast("🏛️ Latein-Modus: Tempus fugit (leider nicht)"); }],
+      ["Informatik-Modus", function () { fmt("binary", 6000); toast("💾 Binär-Modus. Viel Spaß beim Umrechnen."); }],
+      ["Spontan-Disco", function () { mode("mode-disco", 3000); confetti(80); blip([523, 659, 784]); toast("🪩 Spontan-Disco!"); }],
+      ["Wüsten-Stille", function () { walk("🌵", { size: 3, dur: 7 }); walk("🌾", { size: 2.5, dur: 5, hop: true }); toast("🦗 zirp … zirp …"); }],
+      ["Timer schmilzt", function () { timerFx("melt", 3100); toast("🫠 Die Zeit schmilzt dahin"); }],
+      ["UFO-Entführung", function () { walk("🛸", { top: "8vh", size: 4, dur: 6, dir: "rtl" }); later(1800, function () { timerFx("rocket", 2300); }); toast("👽 Wir leihen uns kurz die Zeit aus"); }],
+      ["Blubberblasen", function () { rain(["🫧", "🫧", "🫧", "🐟"], 25, { up: true, dur: 4, size: 1.8 }); }],
+      ["Fisch-Regen", function () { rain(["🐟", "🐠", "🐡", "🦐"], 22, { dur: 3 }); toast("Heute: 100 % Fisch-Niederschlag 🌧️🐟"); }]
+    ];
+    function randomGag() { var g = rnd(GAGS); g[1](); log(g[0]); }
+    var gagTimer = null;
+    function scheduleGag() {
+      clearTimeout(gagTimer);
+      gagTimer = later(rint(15, 40) * 1000 / SPEED, function () { randomGag(); scheduleGag(); });
+    }
+
+    // ================= Minuten-Themen (ganze Minute lang) =================
+    var THEMES = {
+      99: ["99 Luftballons 🎈", function () { say("🎈 99 Luftballons 🎈"); }, function () { rain(["🎈"], 2, { up: true, dur: 6, spin: false, size: 2.4 }); }],
+      90: ["Anpfiff ⚽", function () { say("⚽ 90 MINUTEN! ⚽<small>Anpfiff zur Vorlesung</small>"); walk("⚽", { size: 2.5, dur: 4, hop: true }); }],
+      88: ["Schneemann-Minute ⛄", function () { say("⛄⛄ 88 ⛄⛄"); }, function () { rain(["❄️"], 2, { dur: 5, size: 1.4 }); }],
+      80: ["80er-Modus 🕹️", function () { mode("mode-synth"); say("🕹️ 80er-MODUS 🕹️"); }],
+      77: ["Schnapszahl-Minute 🍻", function () { say("🍻 77 🍻<small>Schnapszahl-Minute!</small>"); confetti(80); }],
+      69: ["nice. 😎", function () { mode("mode-nice"); say("nice. 😎", 3000); rain(["😎"], 10, { dur: 2.5 }); },
+           function (c) { if (c.s % 15 === 9) say("nice.", 1600, { top: rint(20, 75) + "%", left: rint(20, 80) + "%", fontSize: "2.4rem" }); }],
+      67: ["SIX SEVEN 🤷", function () { say("6️⃣ 7️⃣ <small>🫴 SIX SEVEN 🫳</small>", 3200); timerFx("wobble67", 60000); },
+           function (c) { if (c.s % 6 === 0) popAround(["🫴", "🫳", "6️⃣", "7️⃣", "🤷"], 3); }],
+      66: ["Route 66 🛣️", function () { say("🛣️ ROUTE 66 🛣️"); walk('<span class="flip">🏎️</span>💨', { size: 3, dur: 3 }); }],
+      64: ["Nintendo-64-Minute 🎮", function () { mode("mode-pixel"); say("🎮 N64-MINUTE 🎮"); }],
+      60: ["Eine Stunde noch ⏰", function () { say("⏰ NOCH 1 STUNDE ⏰<small>(klingt schlimmer als es ist)</small>"); }],
+      55: ["Schnapszahl-Minute", function () { say("🖐️ 55 🖐️<small>Schnapszahl!</small>"); confetti(60); }],
+      50: ["Halbes Hundert", function () { say("5️⃣0️⃣<small>Halbes Hundert. Ganzer Schmerz.</small>"); }],
+      45: ["Fußball-Halbzeit", function () { say("⚽ 45 ⚽<small>Bei Fußball wär jetzt Halbzeit</small>"); }],
+      44: ["Schnapszahl-Minute", function () { say("🍀 44 🍀"); rain(["🍀"], 12); }],
+      42: ["Die Antwort auf alles", function () {
+        say("4️⃣2️⃣<small>Die Antwort auf das Leben, das Universum und den ganzen Rest</small>", 4000);
+        rain(["🐋"], 1, { dur: 3.5, size: 6 }); rain(["🪴"], 1, { dur: 3.5, size: 3.5 });
+        later(2500, function () { toast("🪴: „Oh nein, nicht schon wieder.“"); }); },
+           function (c) { if (c.s === 30) toast("🐬 Macht's gut, und danke für den Fisch!"); }],
+      33: ["Schnapszahl-Minute", function () { say("🎳 33 🎳"); }],
+      30: ["Halbe Stunde", function () { say("🧟 NOCH 30 MINUTEN 🧟<small>Lebenszeichen geben!</small>"); walk("🧟🧟‍♀️🧟‍♂️", { size: 3, dur: 12 }); }],
+      23: ["Illuminati 🔺", function () { mode("mode-spooky"); say("🔺👁️🔺<small>23 – Zufall? Ich glaube nicht.</small>", 3500); }],
+      22: ["Schwanen-Minute 🦢", function () { say("🦢 22 🦢"); walk("🦢 🦢", { size: 3, dur: 10, dir: "rtl" }); },
+           function (c) { if (c.s % 20 === 0) walk("🦢", { size: 2.5, dur: 9 }); }],
+      20: ["Tasche halb packen 🎒", function () { say("🎒 20 MINUTEN<small>Tasche schon mal halb packen (unauffällig)</small>"); }],
+      15: ["Viertelstunde 🍕", function () { say("🍕 VIERTELSTUNDE 🍕"); rain(["🍕"], 16); }],
+      13: ["Pech-Minute 🐈‍⬛", function () { mode("mode-dark"); say("🐈‍⬛ 13 🐈‍⬛<small>Pech-Minute. Nichts anfassen.</small>"); walk("🐈‍⬛", { size: 3, dur: 7 }); }],
+      12: ["Dutzend-Minute", function () { say("🥚 12 🥚<small>Ein Dutzend Minuten</small>"); rain(["🥚"], 12); }],
+      11: ["Wünsch dir was ✨", function () { say("✨ 11 ✨<small>Wünsch dir was!</small>"); shootingStars(5); },
+           function (c) { if (c.s % 12 === 0) shootingStars(1); }],
+      10: ["Endspurt 🏃", function () { say("🏃 ENDSPURT 🏃<small>Noch 10 Minuten</small>"); walk('<span class="flip">🏃</span>💨', { size: 3, dur: 2.5 }); }],
+      7:  ["007-Modus 🕵️", function () { showOverlay('<div class="bond"></div>', 2600); later(2600, function () { say("🕵️ 00:07:00 🕵️<small>Lizenz zum Gehen</small>"); }); }],
+      5:  ["Jacke anziehen 🧥", function () { say("🧥 5 MINUTEN 🧥<small>Jacke? Jacke.</small>"); }],
+      3:  ["Eieruhr 🥚", function () { say("🥚 3 MINUTEN 🥚<small>Ein weiches Ei. Fast fertig.</small>"); }],
+      2:  ["Laptop zu 💻", function () { say("💻 2 MINUTEN 💻<small>Laptop-Deckel in Position</small>"); }],
+      1:  ["LETZTE MINUTE", function () { mode("mode-panic"); timerFx("heartbeat", 61000); say("🚨 LETZTE MINUTE 🚨", 3000); blip([880, 660, 880, 660]); }]
+    };
+    var THEME_MODES = ["mode-synth", "mode-nice", "mode-pixel", "mode-spooky", "mode-dark", "mode-panic"];
+    function clearThemeModes() {
+      THEME_MODES.forEach(function (c) { document.body.classList.remove(c); });
+      wrapEl.classList.remove("wobble67", "heartbeat");
+    }
+    function shootingStars(n) {
+      for (var i = 0; i < n; i++) (function (d) {
+        later(d, function () {
+          var s = document.createElement("div"); s.className = "shoot";
+          s.style.left = rint(0, 40) + "vw"; s.style.top = rint(2, 30) + "vh";
+          fx.appendChild(s); later(1200, function () { s.remove(); });
+        });
+      })(i * 300);
+    }
+
+    // ================= Sekunden-Trigger =================
+    // Werden jede Sekunde geprüft; jeder Eintrag: [Name, Test(c), Aktion(c)]
+    var TRIGGERS = [
+      // --- volle Minute
+      ["Minuten-Gong", function (c) { return c.s === 0 && c.m > 0 && !THEMES[c.m - 1]; },
+        function (c) { toast(fill(rnd(MINUTE_MSGS), { m: c.m, R: c.R })); timerFx("bounce", 700); blip(660); }],
+      // --- Schnapszahl-Sekunden
+      ["Schnapszahl-Sekunde", function (c) { return !!SCHNAPS[c.s]; },
+        function (c) { var x = SCHNAPS[c.s]; timerFx(rnd(["digits-hot", "digits-jump"]), 900); popAround([x[0]], 2); }],
+      // --- Minuten == Sekunden (z. B. 23:23)
+      ["Echo", function (c) { return c.m === c.s && c.m > 0; },
+        function (c) { timerFx("echo", 2500); toast("Echo … " + pad(c.m) + " … echo … " + pad(c.s) + " … 🗣️"); }],
+      // --- Palindrom (z. B. 12:21, 45:54)
+      ["Palindrom", function (c) { var t = pad(c.m) + pad(c.s); return c.m !== c.s && c.m < 100 && t === t.split("").reverse().join(""); },
+        function () { timerFx("mirror", 2400); toast("🔁 Palindrom! Rückwärts genauso lang."); }],
+      // --- Treppe aufwärts (12:34, 23:45, 01:23 …)
+      ["Treppe", function (c) { var t = pad(c.m) + pad(c.s); return /^(0123|1234|2345|3456|4567|5678)$/.test(t); },
+        function () { timerFx("stairs", 1700); say("📶 TREPPE!", 1800, { top: "75%", fontSize: "2.4rem" }); }],
+      // --- Countdown abwärts (54:32, 43:21, 32:10)
+      ["Raketenstart", function (c) { var t = pad(c.m) + pad(c.s); return /^(5432|4321|3210|6543)$/.test(t); },
+        function () { walk("🚀", { size: 3, dur: 2.5, bottom: "10vh" }); timerFx("rocket", 2300); toast("🚀 " + "3 … 2 … 1 … LIFT-OFF!"); }],
+      // --- jede x:42
+      ["42-Sekunde", function (c) { return c.s === 42 && c.m !== 42; },
+        function () { popAround(["🐬", "🧺", "🌌"], 2); }],
+      // --- Sekunden-Stand mit 67 / 69 am Ende
+      ["…67", function (c) { return c.R % 100 === 67; },
+        function () { popAround(["6️⃣", "7️⃣", "🤷"], 3); toast("…67 🫴🫳"); }],
+      ["…69", function (c) { return c.R % 100 === 69; },
+        function () { say("nice.", 1500, { top: rint(25, 70) + "%", fontSize: "2.8rem" }); }],
+      // --- besondere Sekunden-Zahlen (Restsekunden gesamt)
+      ["3141 – Pi", function (c) { return c.R === 3141 || c.R === 314; },
+        function () { say("🥧 π 🥧<small>" + (3.14159).toLocaleString("de-DE") + "… Sekunden-Kuchen</small>"); rain(["🥧"], 18); }],
+      ["2718 – e", function (c) { return c.R === 2718; },
+        function () { say("ℯ<small>2,718 – die Euler-Sekunde 🤓</small>"); }],
+      ["1337 – LEET", function (c) { return c.R === 1337; },
+        function () { mode("mode-matrix", 8000); fmt("leet", 8000); say("1337 H4X0R", 3000, { color: "#39ff14", textShadow: "0 0 30px #39ff14" }); }],
+      ["1234", function (c) { return c.R === 1234; },
+        function () { say("1-2-3-4<small>Eckstein, alles muss versteckt sein 🙈</small>"); }],
+      ["1000 Sekunden", function (c) { return c.R === 1000; },
+        function () { say("🎆 1000 SEKUNDEN 🎆"); confetti(160); }],
+      ["999 / 666", function (c) { return c.R === 999 || c.R === 666; },
+        function (c) {
+          if (c.R === 666) { mode("mode-hell", 5000); say("😈 666 😈<small>Höllisch lange Vorlesung</small>"); rain(["🔥"], 20, { up: true }); }
+          else { timerFx("upside", 3000); say("999 … oder 666? 🙃"); } }],
+      ["777 – Jackpot", function (c) { return c.R === 777; },
+        function () {
+          showOverlay('<div class="slot"><div><span>🍒<br>🐳<br>🍋<br>7️⃣<br>🍒</span></div><div><span>🐳<br>🍋<br>7️⃣<br>🍒<br>🐳</span></div><div><span>7️⃣<br>🍒<br>🐳<br>🍋<br>7️⃣</span></div></div>', 2400);
+          later(2400, function () { say("🎰 7️⃣7️⃣7️⃣ JACKPOT! 🎰"); confetti(200); rain(["🪙", "💰"], 30); blip([523, 659, 784, 1047]); }); }],
+      ["404", function (c) { return c.R === 404; },
+        function () { mode("mode-glitch", 3500); fmt("404", 3500); say("404<small>Zeit nicht gefunden</small>", 3200); }],
+      ["300 – Sparta", function (c) { return c.R === 300; },
+        function () { say("🛡️ THIS IS SPARTAAA! 🛡️<small>(300 Sekunden)</small>"); timerFx("quake", 2000); }],
+      ["256 – Byte", function (c) { return c.R === 256; },
+        function () { toast("💾 256 Sekunden: Byte voll. Bitte neues Byte einlegen."); fmt("binary", 3000); }],
+      ["123", function (c) { return c.R === 123; },
+        function () { say("1️⃣2️⃣3️⃣<small>…und vorbei? Fast.</small>"); }],
+      ["101 Dalmatiner", function (c) { return c.R === 101; },
+        function () { walk("🐕 🐕 🐕 🐕 🐕", { size: 2.4, dur: 6, hop: true, dir: "rtl" }); toast("🐕 101 Dalmatiner (gezählt: 5)"); }],
+      ["100", function (c) { return c.R === 100; },
+        function () { say("💯"); confetti(100); }],
+      ["88 Sekunden", function (c) { return c.R === 88; }, function () { toast("88 Sekunden – Zeitmaschine bei 88 mph 🚗⚡"); }],
+      // --- Echte Uhrzeit
+      ["Uhrzeit-Doppel", function (c) { return c.cs === 0 && c.ch === c.cmin; },
+        function (c) { say("🕰️ " + pad(c.ch) + ":" + pad(c.cmin) + " 🕰️<small>Doppel-Uhrzeit – wünsch dir was!</small>"); shootingStars(4); }],
+      ["13:37", function (c) { return c.cs === 0 && c.ch === 13 && c.cmin === 37; },
+        function () { mode("mode-matrix", 8000); say("13:37 – LEET-UHRZEIT 💻"); }],
+      ["12:34", function (c) { return c.cs === 0 && c.ch === 12 && c.cmin === 34; },
+        function () { say("12:34<small>Die ordentlichste Uhrzeit des Tages 📏</small>"); }],
+      ["Volle Stunde", function (c) { return c.cs === 0 && c.cmin === 0; },
+        function (c) { say("🔔 " + c.ch + " Uhr 🔔<small>Bimm. Bamm.</small>"); blip([523, 392, 523, 392]); }],
+      ["Uhrzeit :07", function (c) { return c.cs === 7 && c.cmin === 6; },
+        function () { toast("Uhrzeit endet auf 6:07 … SIX SEVEN 🤷"); popAround(["🫴", "🫳"], 2); }],
+      // --- Fortschritt in Prozent (beim Überschreiten)
+      ["Prozent-Meilenstein", function (c) { return c.pct !== c.prevPct && PCT[c.pct]; },
+        function (c) { PCT[c.pct](c); }],
+      // --- letzte 10 Sekunden
+      ["Final Countdown", function (c) { return c.R <= 10 && c.R > 0; },
+        function (c) { var b = document.createElement("div"); b.className = "bignum"; b.textContent = c.R; fx.appendChild(b);
+                       later(1000, function () { b.remove(); }); blip(440 + (10 - c.R) * 40, 0.15); }]
+    ];
+
+    var PCT = {
+      10: function () { toast("10 % geschafft – Aufwärmen beendet 🏋️"); },
+      25: function () { say("¼ geschafft 🍕"); },
+      33: function () { say("⅓ geschafft 🍰"); },
+      50: function () { say("🍊 HALBZEIT! 🍊<small>Orangen werden verteilt (nicht wirklich)</small>", 3500); confetti(120); },
+      67: function () { say("67 % 🤷<small>six seven Prozent</small>"); timerFx("wobble67", 4000); },
+      69: function () { say("69 % – nice. 😎"); },
+      75: function () { say("¾ geschafft 🏔️"); },
+      90: function () { say("90 % 🏁<small>Ziel in Sicht</small>"); },
+      99: function () { mode("p99"); say("99 % 💾<small>Windows-Ladebalken-Phase: der Rest dauert ewig</small>", 3500); }
+    };
+
+    // ================= Überziehung =================
+    var OVERTIME_MSGS = [
+      "Nur noch eine Folie … 🖼️", "„Eine letzte Sache noch …“ ☝️", "Die Mensa schließt gleich 😱",
+      "Überziehung offiziell bestätigt 🧾", "💀 *wartet geduldig*", "Hörsaal-Geiselnahme Tag 1 🔒",
+      "Die Zeit ist um. Die Vorlesung nicht. 🤡", "Wal verlässt bereits den Raum 🐳🚪"
+    ];
+
+    // ================= Hauptschleife =================
+    var lastR = null, lastTheme = null, lastPct = null, finished = false;
+
+    function clockStr(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+
+    function render(R) {
+      var neg = R < 0, a = Math.abs(R), m = Math.floor(a / 60), s = a % 60;
+      var txt;
+      if (fmtMode && Date.now() < fmtUntil) {
+        if (fmtMode === "roman") txt = roman(m) + " : " + roman(s);
+        else if (fmtMode === "binary") txt = '<span style="font-size:.35em">' + m.toString(2) + " : " + s.toString(2) + "</span>";
+        else if (fmtMode === "glitch") txt = pad(rint(0, 99)) + ":" + pad(rint(0, 59));
+        else if (fmtMode === "leet") txt = (pad(m) + ":" + pad(s)).replace(/1/g, "l").replace(/3/g, "E").replace(/4/g, "A").replace(/0/g, "O");
+        else if (fmtMode === "404") txt = "4:04";
+      } else fmtMode = null;
+      if (!txt) {
+        txt = (neg ? "+" : "") + (m >= 100 ? Math.floor(m / 60) + ":" + pad(m % 60) : pad(m)) +
+              '<span class="colon">:</span><span class="s">' + pad(s) + "</span>";
+      }
+      timerEl.innerHTML = txt;
+      timerEl.classList.toggle("over", neg);
+    }
+    function roman(n) {
+      if (n === 0) return "N";
+      var v = [50, 40, 10, 9, 5, 4, 1], r = ["L", "XL", "X", "IX", "V", "IV", "I"], o = "";
+      if (n >= 100) return String(n);
+      for (var i = 0; i < v.length; i++) while (n >= v[i]) { o += r[i]; n -= v[i]; }
+      return o;
+    }
+
+    function tick() {
+      var t = now();
+      var R = Math.ceil((cfg.end - t) / 1000);
+      var total = Math.max(1, (cfg.end - cfg.begin) / 1000);
+      var pct = Math.max(0, Math.min(100, Math.floor((1 - Math.max(R, 0) / total) * 100)));
+      var d = new Date(t);
+
+      $("clock").textContent = clockStr(d);
+      $("pct").textContent = pct + " %";
+      fillEl.style.width = pct + "%";
+      swimEl.style.left = "calc(" + pct + "% * 0.92 + 16px)";
+
+      if (R === lastR) { if (fmtMode) render(R); return; }   // nur neu zeichnen, wenn nötig (sonst blinkt der Doppelpunkt nie)
+      var first = lastR === null;
+      lastR = R;
+      render(R);
+
+      if (R > 0) {
+        finished = false;
+        subEl.textContent = "noch " + R.toLocaleString("de-DE") + " Sekunden · Ende um " + clockStr(new Date(cfg.end));
+      }
+
+      var c = { R: R, m: Math.floor(Math.max(R, 0) / 60), s: Math.max(R, 0) % 60, pct: pct, prevPct: lastPct,
+                ch: d.getHours(), cmin: d.getMinutes(), cs: d.getSeconds() };
+      if (first) c.prevPct = pct;   // beim Laden keine Prozent-Meilensteine nachholen
+      lastPct = pct;
+      if (pct < 99) document.body.classList.remove("p99");
+
+      // Ende
+      if (R <= 0) { overtime(R); return; }
+
+      // Minuten-Thema wechseln
+      if (c.m !== lastTheme) {
+        lastTheme = c.m;
+        clearThemeModes();
+        var th = THEMES[c.m];
+        if (th) { th[1](c); log(th[0]); blip([392, 523]); }
+      } else if (THEMES[c.m] && THEMES[c.m][2]) {
+        THEMES[c.m][2](c);
+      }
+
+      // Sekunden-Trigger
+      for (var i = 0; i < TRIGGERS.length; i++) {
+        var tr = TRIGGERS[i];
+        try { if (tr[1](c)) { tr[2](c); if (tr[0] !== "Final Countdown" && tr[0] !== "Schnapszahl-Sekunde") log(tr[0]); } }
+        catch (e) { /* ein kaputter Gag soll nie die Uhr anhalten */ }
+      }
+    }
+
+    function overtime(R) {
+      if (!finished) {
+        finished = true;
+        clearThemeModes();
+        say("🐳 FREIHEIT! 🎉<small>„an der Stelle“ heute: " + ($("ads").textContent) + "×</small>", 6000);
+        confetti(300); later(800, function () { confetti(250); }); later(1600, function () { confetti(250); });
+        rain(["🐳", "🐋", "🎉", "🎊", "🍾", "🕊️"], 50, { dur: 4 });
+        blip([523, 659, 784, 1047, 1319], 0.4);
+        log("Vorlesung vorbei");
+      }
+      var over = -R;
+      subEl.textContent = R === 0 ? "Vorlesung vorbei!" : "Überziehung: " + Math.floor(over / 60) + " min " + (over % 60) + " s 😤";
+      if (over > 0 && over % 30 === 0) { toast(rnd(OVERTIME_MSGS)); timerFx("quake", 1000); }
+      if (over > 0 && over % 60 === 15) walk("💀", { size: 3, dur: 10, hop: true });
+    }
+
+    // ================= „an der Stelle“-Zähler mitlesen =================
+    var lastAds = null;
+    function readAds() {
+      var n = parseInt(localStorage.getItem("anderstelle.count"), 10) || 0;
+      $("ads").textContent = n;
+      if (lastAds !== null && n > lastAds) {
+        say("🐳 AN DER STELLE! 🐳", 2000, { top: "20%", fontSize: "clamp(1.6rem,5vw,3rem)" });
+        rain(["🐳", "🐋"], 12, { up: true, dur: 3 });
+        log("„an der Stelle“ gehört");
+      }
+      lastAds = n;
+    }
+    addEventListener("storage", function (e) { if (e.key === "anderstelle.count") readAds(); });
+    setInterval(readAds, 2000);
+
+    // ================= Einstellungen =================
+    function toTimeInput(ms) { var d = new Date(ms); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+    function fromTimeInput(v, ref) {
+      var p = v.split(":"), d = new Date(ref);
+      d.setHours(+p[0], +p[1], 0, 0);
+      return d.getTime();
+    }
+    function syncInputs() { $("begin").value = toTimeInput(cfg.begin); $("end").value = toTimeInput(cfg.end); }
+    function setCfg(b, e) {
+      if (e <= b) e += 24 * 3600 * 1000;   // Ende nach Mitternacht
+      cfg = { begin: b, end: e }; save(); syncInputs();
+      lastR = null; lastTheme = null; lastPct = null; finished = false; clearThemeModes(); tick();
+    }
+    $("begin").addEventListener("change", function () { if (this.value) setCfg(fromTimeInput(this.value, now()), cfg.end); });
+    $("end").addEventListener("change", function () { if (this.value) setCfg(cfg.begin, fromTimeInput(this.value, cfg.begin)); });
+    $("p90").addEventListener("click", function () { var t = now(); setCfg(t, t + 90 * 60000); });
+    $("p45").addEventListener("click", function () { var t = now(); setCfg(t, t + 45 * 60000); });
+    $("gag").addEventListener("click", randomGag);
+    $("sound").addEventListener("click", function () {
+      soundOn = !soundOn; this.textContent = soundOn ? "🔊 Ton an" : "🔇 Ton aus"; if (soundOn) blip(660);
+    });
+
+    // ================= Deko & Start =================
+    (function bubbles() {
+      for (var i = 0; i < 18; i++) {
+        var b = document.createElement("div"); b.className = "bubble";
+        var s = 6 + Math.random() * 22; b.style.width = b.style.height = s + "px";
+        b.style.left = Math.random() * 100 + "vw";
+        b.style.animationDuration = (9 + Math.random() * 12) + "s";
+        b.style.animationDelay = (-Math.random() * 15) + "s";
+        $("bubbles").appendChild(b);
+      }
+    })();
+
+    syncInputs();
+    readAds();
+    tick();
+    setInterval(tick, 200);
+    scheduleGag();
+
+    // Für Tests/Neugierige: alle Gags einzeln auslösbar
+    window.countdownDebug = { gags: GAGS, themes: THEMES, triggers: TRIGGERS, pct: PCT };
+  })();
+  </script>
+</body>
+</html>
