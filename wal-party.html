@@ -196,6 +196,11 @@
       100% { transform: translateY(70px) rotate(48deg) scaleX(-1); opacity: 0; }
     }
 
+    @media (prefers-reduced-motion: reduce) {
+      #flash.on, .world.shake { animation: none; }
+      #disco { animation: none; }
+    }
+
     /* Inhalt */
     .world { position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center;
              padding: 20px 16px 56px; gap: 18px; min-height: 100vh; }
@@ -317,10 +322,15 @@
   </style>
 </head>
 <body>
+  <div id="disco"></div>
   <div id="bubbles"></div>
   <div id="swimmers"></div>
   <canvas id="confetti"></canvas>
+  <div id="streamers"></div>
+  <div id="rings"></div>
+  <div id="breach"></div>
   <div id="emojis"></div>
+  <div id="flash"></div>
   <div id="whaleShow"></div>
   <div id="banner-layer"><div id="banner">🐳 AN DER STELLE! 🐳</div></div>
 
@@ -510,6 +520,12 @@
         showWhale();
         partyFlash();
         airhorn();
+        shockwave(2 + times);
+        streamerRain(40 + times * 15);
+        strobe();
+        shake();
+        breachWhales(Math.min(2 + times, 6));
+        fireworks(Math.min(2 + times, 6));
       }
 
       function partyTest() { ensureAudio(); party(2); }
@@ -548,7 +564,12 @@
           if (p.life <= 0 || p.y > confCanvas.height + 50) { confParticles.splice(i, 1); continue; }
           confCtx.save();
           confCtx.translate(p.x, p.y); confCtx.rotate(p.rot); confCtx.fillStyle = p.color;
-          if (p.shape === "rect") confCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          if (p.shape === "spark") {
+            confCtx.globalAlpha = Math.min(1, p.life / 40);
+            confCtx.shadowColor = p.color; confCtx.shadowBlur = 12;
+            confCtx.beginPath(); confCtx.arc(0, 0, p.size / 2, 0, 6.28); confCtx.fill();
+          }
+          else if (p.shape === "rect") confCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
           else { confCtx.beginPath(); confCtx.arc(0, 0, p.size / 2, 0, 6.28); confCtx.fill(); }
           confCtx.restore();
         }
@@ -618,6 +639,96 @@
         document.body.classList.add("rave");
         clearTimeout(raveTimer);
         raveTimer = setTimeout(function () { document.body.classList.remove("rave"); }, 900);
+      }
+
+      // ----- Feuerwerk (Funken im Konfetti-Canvas) -----
+      function fireworks(n) {
+        for (var k = 0; k < n; k++) {
+          (function (delay) {
+            setTimeout(function () {
+              var cx = window.innerWidth * (0.15 + Math.random() * 0.7);
+              var cy = window.innerHeight * (0.12 + Math.random() * 0.4);
+              var color = CONF_COLORS[(Math.random() * CONF_COLORS.length) | 0];
+              var sparks = 46;
+              for (var i = 0; i < sparks; i++) {
+                var ang = (i / sparks) * 6.28, v = 4 + Math.random() * 4;
+                confParticles.push({
+                  x: cx, y: cy, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
+                  g: 0.08, size: 3 + Math.random() * 3, rot: 0, vr: 0,
+                  color: Math.random() < 0.8 ? color : "#ffffff",
+                  life: 55 + Math.random() * 30, shape: "spark"
+                });
+              }
+              if (!confRunning) { confRunning = true; requestAnimationFrame(confStep); }
+            }, delay);
+          })(k * 260);
+        }
+      }
+
+      // ----- Schockwellen-Ringe -----
+      var ringLayer = document.getElementById("rings");
+      function shockwave(n) {
+        for (var i = 0; i < n; i++) {
+          (function (delay) {
+            setTimeout(function () {
+              var r = document.createElement("div");
+              r.className = "ring";
+              r.style.borderColor = CONF_COLORS[(Math.random() * CONF_COLORS.length) | 0];
+              ringLayer.appendChild(r);
+              setTimeout(function () { r.remove(); }, 1000);
+            }, delay);
+          })(i * 150);
+        }
+      }
+
+      // ----- Streamer-Regen -----
+      var streamerLayer = document.getElementById("streamers");
+      function streamerRain(n) {
+        for (var i = 0; i < n; i++) {
+          var s = document.createElement("div");
+          s.className = "streamer";
+          s.style.left = (Math.random() * 100) + "vw";
+          s.style.background = CONF_COLORS[(Math.random() * CONF_COLORS.length) | 0];
+          s.style.height = (16 + Math.random() * 30) + "px";
+          var dur = 1.6 + Math.random() * 1.8, delay = Math.random() * 0.8;
+          s.style.animationDuration = dur + "s";
+          s.style.animationDelay = delay + "s";
+          streamerLayer.appendChild(s);
+          (function (el, ms) { setTimeout(function () { el.remove(); }, ms); })(s, (dur + delay) * 1000 + 100);
+        }
+      }
+
+      // ----- Strobo-Blitz -----
+      var flashEl = document.getElementById("flash");
+      function strobe() {
+        flashEl.classList.remove("on");
+        void flashEl.offsetWidth;
+        flashEl.classList.add("on");
+      }
+
+      // ----- Screen-Shake -----
+      var worldEl = document.querySelector(".world");
+      function shake() {
+        worldEl.classList.remove("shake");
+        void worldEl.offsetWidth;
+        worldEl.classList.add("shake");
+      }
+
+      // ----- Aus dem Wasser springende Wale -----
+      var breachLayer = document.getElementById("breach");
+      function breachWhales(n) {
+        for (var i = 0; i < n; i++) {
+          (function (delay) {
+            setTimeout(function () {
+              var w = document.createElement("div");
+              w.className = "breacher";
+              w.textContent = ["🐋", "🐳", "🐬"][(Math.random() * 3) | 0];
+              w.style.left = (5 + Math.random() * 85) + "vw";
+              breachLayer.appendChild(w);
+              setTimeout(function () { w.remove(); }, 1800);
+            }, delay);
+          })(i * 220);
+        }
       }
 
       // ----- Airhorn (Web Audio, ohne Datei) -----
