@@ -65,16 +65,8 @@
     #timerSub { text-align: center; color: var(--muted); font-size: clamp(0.9rem, 2.4vw, 1.15rem);
                 font-variant-numeric: tabular-nums; margin-top: 6px; }
 
-    /* Fortschritt: Wal schwimmt zur Insel */
-    #track { position: relative; width: min(760px, 92vw); height: 46px; margin-top: 4px; }
-    #track .line { position: absolute; left: 0; right: 36px; top: 50%; height: 8px; margin-top: -4px;
-                   border-radius: 4px; background: rgba(255,255,255,0.12); overflow: hidden; }
-    #track .fill { height: 100%; width: 0; background: linear-gradient(90deg, #2e7dff, #5ff0d8); transition: width 1s linear; }
-    #track .swimmer { position: absolute; top: 50%; font-size: 2rem; transform: translate(-50%, -55%) scaleX(-1);
-                      transition: left 1s linear; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)); }
-    #track .goal { position: absolute; right: 0; top: 50%; transform: translateY(-55%); font-size: 2rem; }
-    body.p99 #track .fill { animation: stuck 1.2s ease-in-out infinite; }
-    @keyframes stuck { 50% { filter: brightness(1.8); } }
+    /* Fortschritt: Meme-Balken aus memebar.js */
+    #track { display: flex; justify-content: center; width: 100%; }
 
     .row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; align-items: center; }
     .pill { background: var(--panel); border: 1px solid rgba(255,255,255,0.08); border-radius: 999px;
@@ -232,11 +224,7 @@
     <div id="timerWrap"><div id="timer">--:--</div></div>
     <div id="timerSub">Zeit einstellen ↓</div>
 
-    <div id="track">
-      <div class="line"><div class="fill"></div></div>
-      <div class="swimmer">🐳</div>
-      <div class="goal">🏝️</div>
-    </div>
+    <div id="track"></div>
 
     <div class="row">
       <div class="pill">„an der Stelle“ bisher: <b id="ads">0</b></div>
@@ -262,6 +250,7 @@
     </footer>
   </div>
 
+  <script src="memebar.js"></script>
   <script>
   (function () {
     "use strict";
@@ -287,7 +276,7 @@
     var $ = function (id) { return document.getElementById(id); };
     var timerEl = $("timer"), wrapEl = $("timerWrap"), subEl = $("timerSub"), fx = $("fx"), rainEl = $("rain"),
         walkersEl = $("walkers"), overlay = $("overlay"), toastsEl = $("toasts"), tickerEl = $("ticker"),
-        fillEl = document.querySelector("#track .fill"), swimEl = document.querySelector("#track .swimmer");
+        trackEl = $("track");
 
     function pad(n) { n = Math.abs(n); return (n < 10 ? "0" : "") + n; }
     function rnd(a) { return a[(Math.random() * a.length) | 0]; }
@@ -655,7 +644,7 @@
       69: function () { say("69 % – nice. 😎"); },
       75: function () { say("¾ geschafft 🏔️"); },
       90: function () { say("90 % 🏁<small>Ziel in Sicht</small>"); },
-      99: function () { mode("p99"); say("99 % 💾<small>Windows-Ladebalken-Phase: der Rest dauert ewig</small>", 3500); }
+      99: function () { say("99 % 💾<small>Windows-Ladebalken-Phase: der Rest dauert ewig</small>", 3500); }
     };
 
     // ================= Überziehung =================
@@ -704,8 +693,7 @@
 
       $("clock").textContent = clockStr(d);
       $("pct").textContent = pct + " %";
-      fillEl.style.width = pct + "%";
-      swimEl.style.left = "calc(" + pct + "% * 0.92 + 16px)";
+      MemeBar.update((1 - Math.max(R, 0) / total) * 100, R, total);
 
       if (R === lastR) { if (fmtMode) render(R); return; }   // nur neu zeichnen, wenn nötig (sonst blinkt der Doppelpunkt nie)
       var first = lastR === null;
@@ -721,7 +709,6 @@
                 ch: d.getHours(), cmin: d.getMinutes(), cs: d.getSeconds() };
       if (first) c.prevPct = pct;   // beim Laden keine Prozent-Meilensteine nachholen
       lastPct = pct;
-      if (pct < 99) document.body.classList.remove("p99");
 
       // Ende
       if (R <= 0) { overtime(R); return; }
@@ -768,6 +755,7 @@
       if (lastAds !== null && n > lastAds) {
         say("🐳 AN DER STELLE! 🐳", 2000, { top: "20%", fontSize: "clamp(1.6rem,5vw,3rem)" });
         rain(["🐳", "🐋"], 12, { up: true, dur: 3 });
+        MemeBar.hit();
         log("„an der Stelle“ gehört");
       }
       lastAds = n;
@@ -809,6 +797,7 @@
       }
     })();
 
+    MemeBar.mount(trackEl, { speed: SPEED });
     syncInputs();
     readAds();
     tick();

@@ -122,6 +122,13 @@ Dabei passiert ständig irgendein Unsinn:
   Comic Sans, Enten-Parade, Latein-/Binär-Modus, Wal-Fakten …
 - die letzten 10 Sekunden riesig, danach Party und **Überziehungs-Zähler**
 - liest den „an der Stelle"-Zähler mit und feiert jeden neuen Treffer
+- **Meme-Fortschrittsbalken** (`memebar.js`), absichtlich nervig: wechselt alle 2,5 Min.
+  (oder per Klick) das Kostüm – Windows-XP-Kopieren, YouTube mit nicht überspringbarer
+  Werbung, Boss-Kampf gegen den Dozenten, Pokémon-Kampf, Akku „Geduld", Download mit
+  Brieftauben-Geschwindigkeit, Mac-Regenbogenrad, Spiel-Ladebildschirm mit Tipps. Dazu
+  Streiche alle 20–50 s: läuft rückwärts, springt auf 99 % („War nur Spaß 🙃"), friert ein
+  („Keine Rückmeldung"), 9 Nachkommastellen, Prozent in Bananen, Turbo-Modus … und eine
+  Restzeit-Anzeige, die meistens lügt. Die echte Prozentzahl steht oben bei „Geschafft".
 
 Ton ist standardmäßig aus. Zum Ausprobieren im Zeitraffer:
 `countdown.html?demo=4030&speed=10` (Ende in 4030 s, 10-fache Geschwindigkeit).
