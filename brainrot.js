@@ -339,6 +339,7 @@
 
   global.Brainrot = {
     mount: mount, update: update, hit: hit,
+    aura: function (n, why) { changeAura([n, why]); },   // für Minigame-Belohnungen
     // für Tests
     events: { italian: italian, phrase: phrase, aura: auraEvent, fanumTax: fanumTax, skibidi: skibidi, mewing: mewing,
               auraFarming: auraFarming, chillGuy: chillGuy, npc: npc, L: L, caption: caption }

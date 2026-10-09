@@ -136,6 +136,17 @@ Dabei passiert ständig irgendein Unsinn:
   (gesund → cooked → Ohio-Final-Boss → komplett verrottet), Fanum Tax auf den Timer,
   Skibidi, Mewing-Pause, Aura-Farming-Boot, Chill Guy, NPC-Modus und ein Schalter
   **„🧠 Brainrot-Sprache"**, der die Seite übersetzt („bro wann ist die Lecture endlich over 💀").
+- **🎮 Minigames** (`minigames.js`, Button unten rechts, alles lautlos):
+  - **🎯 Dozenten-Bingo** – 4×4-Karte pro Tag; die „an der Stelle"-Felder (1×, 3×, 5×) hakt
+    die Spracherkennung automatisch ab
+  - **🐳 Flappy Wal** – durch Folien-Stapel tauchen (Klick/Leertaste/↑)
+  - **🔨 Whack-a-Wal** – 30 s Wale hauen, nicht den Dozenten 👨‍🏫 oder die Klausur 📝
+  - **⚡ Six-Seven-Reaktion** – nur bei „67" klicken, Fallen wie 66/76/69 kosten Strafzeit
+  - **🧠 Brainrot-Memory** – Italian-Brainrot-Paare finden
+  - **🔮 Orakel** – tippen, wie oft noch „an der Stelle" kommt; Auswertung bei Countdown-Ende
+
+  Rekorde werden im Browser gespeichert, gute Ergebnisse geben Aura. Alle 6–10 Minuten
+  kommt eine Minigame-Challenge rein.
 
 Ton ist standardmäßig aus. Zum Ausprobieren im Zeitraffer:
 `countdown.html?demo=4030&speed=10` (Ende in 4030 s, 10-fache Geschwindigkeit).
