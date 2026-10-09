@@ -341,6 +341,7 @@
 
   <script src="tracker.js"></script>
   <script src="diagnose.js"></script>
+  <script src="minigames.js"></script>
   <script>
     (function () {
       "use strict";
@@ -786,6 +787,7 @@
 
       // --- Init ---
       AnderStelleDiag.init({ matchRe: MATCH_RE });
+      MiniGames.mount({ watchCount: true });
       renderCount();
       renderLive("");
       updateToggle();

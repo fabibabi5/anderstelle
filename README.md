@@ -145,8 +145,19 @@ Dabei passiert ständig irgendein Unsinn:
   - **🧠 Brainrot-Memory** – Italian-Brainrot-Paare finden
   - **🔮 Orakel** – tippen, wie oft noch „an der Stelle" kommt; Auswertung bei Countdown-Ende
 
+  - **🐳 Wal-2048** – 🦐 → 🐟 → … → 🐋 → 🐳 zusammenschieben (Pfeile/WASD/Wischen)
+  - **📝 Klausur-Minesweeper** – 9×9, 10 Klausuren; Rechtsklick oder 🚩-Modus für Fahnen
+  - **🦐 Wal-Snake** – Krill fressen, länger werden (Pfeile/WASD/Wischen)
+  - **⌨️ Mitschreib-Simulator** – fallende Vorlesungswörter abtippen, 3 Leben
+  - **🗿 Aura-Clicker** – Idle-Game mit Upgrades, läuft auch bei geschlossener Seite weiter
+  - **❌ Tic-Tac-Toe vs. Dozent** – fast unschlagbar, außer er ist abgelenkt
+
   Rekorde werden im Browser gespeichert, gute Ergebnisse geben Aura. Alle 6–10 Minuten
   kommt eine Minigame-Challenge rein.
+
+  **So kommst du zu den Spielen:** Button **„🎮 Minigames"** unten rechts – in `countdown.html`,
+  `wal-party.html` und `index.html`. Direkt-Link: Adresse mit `#minigames` am Ende, z. B.
+  `http://localhost:8000/countdown.html#minigames`.
 
 Ton ist standardmäßig aus. Zum Ausprobieren im Zeitraffer:
 `countdown.html?demo=4030&speed=10` (Ende in 4030 s, 10-fache Geschwindigkeit).

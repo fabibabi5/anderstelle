@@ -5,8 +5,13 @@
  *   MiniGames.update(remainingSec)           jede Tick-Runde (für das Orakel)
  *   MiniGames.hit()                          „an der Stelle“ gehört (Bingo + Orakel)
  *
- * Spiele: Dozenten-Bingo, Flappy Wal, Whack-a-Wal, Six-Seven-Reaktion,
- * Brainrot-Memory, Orakel. Rekorde liegen in localStorage ("anderstelle.minigames").
+ * Spiele: Dozenten-Bingo, Flappy Wal, Whack-a-Wal, Six-Seven-Reaktion, Brainrot-Memory,
+ * Wal-2048, Klausur-Minesweeper, Wal-Snake, Mitschreib-Simulator, Aura-Clicker,
+ * Tic-Tac-Toe gegen den Dozenten, Orakel.
+ *
+ * Auf Seiten ohne eigenen Treffer-Hook (index.html, wal-party.html) mit
+ * { watchCount: true } einbinden – dann liest das Modul den Zähler selbst mit.
+ * Direkt öffnen: Seite mit #minigames in der Adresse aufrufen. Rekorde liegen in localStorage ("anderstelle.minigames").
  */
 (function (global) {
   "use strict";
@@ -97,7 +102,38 @@
     "#mg-chal.on{transform:translateX(0)}",
     "#mg-chal b{color:#ffd166}#mg-chal .mg-row{justify-content:flex-start;margin-top:8px}",
     "#mg-chal button{font:inherit;font-weight:800;padding:6px 12px;border:none;border-radius:8px;cursor:pointer;background:#5ff0d8;color:#022}",
-    "#mg-chal button.sec{background:rgba(255,255,255,.12);color:#eafcff}"
+    "#mg-chal button.sec{background:rgba(255,255,255,.12);color:#eafcff}",
+    // 2048
+    ".mg-2048{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:400px;margin:0 auto;touch-action:none;user-select:none}",
+    ".mg-2048 div{aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:clamp(1.8rem,8vw,2.6rem);transition:background .15s}",
+    ".mg-2048 div small{font-size:.7rem;font-weight:800;opacity:.8}",
+    // Minesweeper
+    ".mg-mines{display:grid;grid-template-columns:repeat(9,1fr);gap:3px;max-width:440px;margin:0 auto;user-select:none}",
+    ".mg-mines div{aspect-ratio:1;border-radius:5px;background:#2e7dff;display:flex;align-items:center;justify-content:center;cursor:pointer;",
+    "font-weight:900;font-size:clamp(.8rem,3.4vw,1.1rem)}",
+    ".mg-mines div:hover{filter:brightness(1.15)}.mg-mines div.o{background:rgba(255,255,255,.08);cursor:default}",
+    ".mg-mines div.boom{background:#ff3b30}",
+    // Tipp-Spiel
+    ".mg-type{position:relative;height:300px;border-radius:14px;overflow:hidden;background:linear-gradient(#1d3b2a,#0f2a1c);border:6px solid #6b4f2a;transition:border-color .2s}",
+    ".mg-type.miss{border-color:#ff3b30}",
+    ".mg-type .w{position:absolute;top:0;color:#f4f4e8;font:700 1.15rem 'Chalkboard SE','Comic Sans MS',cursive;white-space:nowrap;text-shadow:0 0 6px rgba(255,255,255,.3)}",
+    ".mg-type-in{display:block;width:100%;margin-top:10px;font:inherit;font-size:1.2rem;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.25);",
+    "background:rgba(255,255,255,.08);color:#eafcff}",
+    // Clicker
+    ".mg-moai{position:relative;width:170px;height:170px;margin:4px auto 14px;border-radius:50%;display:flex;align-items:center;justify-content:center;",
+    "font-size:6rem;cursor:pointer;user-select:none;background:radial-gradient(circle,#5ff0d8 0,#2e7dff 60%,transparent 70%);touch-action:manipulation}",
+    ".mg-moai.bop{animation:mgBop .12s ease}@keyframes mgBop{50%{transform:scale(.92)}}",
+    ".mg-plus{position:absolute;font-size:1.1rem;font-weight:900;color:#ffd166;pointer-events:none;animation:mgPlus .8s ease-out forwards}",
+    "@keyframes mgPlus{to{transform:translateY(-60px);opacity:0}}",
+    ".mg-shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}",
+    ".mg-panel .mg-shop button{text-align:left;line-height:1.35;background:rgba(255,255,255,.1);color:#eafcff;font-size:.85rem}",
+    ".mg-panel .mg-shop button:disabled{opacity:.4;cursor:not-allowed}",
+    ".mg-shop strong{float:right;color:#ffd166}.mg-shop small{color:#9fd3e0}",
+    // Tic-Tac-Toe
+    ".mg-ttt{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:320px;margin:0 auto}",
+    ".mg-ttt div{aspect-ratio:1;border-radius:14px;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;",
+    "font-size:clamp(2.4rem,11vw,3.6rem);cursor:pointer;user-select:none}",
+    ".mg-ttt div:hover{background:rgba(255,255,255,.14)}"
   ].join("");
 
   // ---------------- Spiel-Rahmen ----------------
@@ -130,6 +166,18 @@
 
     buildChallenge();
     scheduleChallenge();
+
+    // Seiten ohne eigenen Hook: Zähler selbst mitlesen (Bingo/Orakel)
+    if (o.watchCount) {
+      var lastCount = null;
+      var poll = function () {
+        var n = parseInt(localStorage.getItem("anderstelle.count"), 10) || 0;
+        if (lastCount !== null && n > lastCount) for (var k = lastCount; k < n; k++) hit();
+        lastCount = n;
+      };
+      poll(); setInterval(poll, 1500);
+    }
+    if (/minigames/i.test(location.hash)) open(null);
   }
 
   function open(game) {
@@ -458,6 +506,430 @@
       row.appendChild(nb); root.appendChild(row);
     }
   };
+  // ================= 7) Wal-2048 =================
+  var EVO = ["", "🦐", "🐟", "🐠", "🐡", "🦑", "🐙", "🦭", "🐬", "🦈", "🐋", "🐳"];
+  var EVO_BG = ["", "#0b4f6c", "#0e5d7d", "#11708f", "#1483a0", "#1a96b0", "#21a8bd", "#2bb9c6", "#3ccacb", "#d4a017", "#e88a17", "#ff5e3a"];
+  // Wischgesten auf einem Element erkennen (für Handy)
+  function onSwipe(elm, fn) {
+    var sx = 0, sy = 0;
+    elm.addEventListener("pointerdown", function (e) { sx = e.clientX; sy = e.clientY; });
+    elm.addEventListener("pointerup", function (e) {
+      var dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 25) return;
+      fn(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
+    });
+  }
+  function keyDir(e) {
+    return { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", a: "left", d: "right", w: "up", s: "down" }[e.key];
+  }
+  GAMES.w2048 = {
+    icon: "🐳", name: "Wal-2048", desc: "Gleiche Tiere zusammenschieben: 🦐 → 🐟 → … → 🐋 → 🐳. Pfeiltasten/WASD oder wischen.",
+    bestText: function () { return best("w2048") != null ? "Rekord: " + de(best("w2048")) + " Punkte" : ""; },
+    start: function (root) {
+      var info = el("div", "mg-info", "<span>Punkte: <b>0</b></span><span>Rekord: " + de(best("w2048") || 0) + "</span>");
+      var grid = el("div", "mg-2048"), msg = el("div", "mg-msg", "Evolution: " + EVO.slice(1).join(" → "));
+      var row = el("div", "mg-row"), nb = el("button", "sec", "🔄 Neues Spiel");
+      row.appendChild(nb);
+      root.appendChild(info); root.appendChild(grid); root.appendChild(msg); root.appendChild(row);
+      var cells, score, won, over;
+      function add() {
+        var free = []; cells.forEach(function (v, i) { if (!v) free.push(i); });
+        if (free.length) cells[rnd(free)] = Math.random() < 0.9 ? 1 : 2;
+      }
+      function reset() { cells = []; for (var i = 0; i < 16; i++) cells.push(0); score = 0; won = false; over = false; add(); add(); draw(); }
+      function idx(dir, k, i) {
+        return dir === "left" ? k * 4 + i : dir === "right" ? k * 4 + (3 - i) : dir === "up" ? i * 4 + k : (3 - i) * 4 + k;
+      }
+      function move(dir) {
+        if (over) return;
+        var changed = false;
+        for (var k = 0; k < 4; k++) {
+          var line = [], i;
+          for (i = 0; i < 4; i++) line.push(cells[idx(dir, k, i)]);
+          var a = line.filter(Boolean), out = [];
+          for (i = 0; i < a.length; i++) {
+            if (a[i] === a[i + 1] && a[i] < 11) { out.push(a[i] + 1); score += Math.pow(2, a[i] + 1); i++; } else out.push(a[i]);
+          }
+          while (out.length < 4) out.push(0);
+          for (i = 0; i < 4; i++) { if (cells[idx(dir, k, i)] !== out[i]) changed = true; cells[idx(dir, k, i)] = out[i]; }
+        }
+        if (!changed) return;
+        add(); draw();
+        if (!won && cells.indexOf(11) >= 0) { won = true; msg.textContent = "🐳 BLAUWAL ERREICHT! 2048!"; reward(20480, "Wal-2048"); if (o.say) o.say("🐳 2048 🐳"); }
+        if (!canMove()) {
+          over = true;
+          var rec = record("w2048", score);
+          msg.textContent = (rec ? "🏆 Neuer Rekord: " : "Keine Züge mehr 💀 ") + de(score) + " Punkte · höchstes Tier: " + EVO[Math.max.apply(null, cells)];
+          info.lastChild.textContent = "Rekord: " + de(best("w2048"));
+        }
+      }
+      function canMove() {
+        for (var i = 0; i < 16; i++) {
+          if (!cells[i]) return true;
+          if (i % 4 < 3 && cells[i] === cells[i + 1]) return true;
+          if (i < 12 && cells[i] === cells[i + 4]) return true;
+        }
+        return false;
+      }
+      function draw() {
+        grid.innerHTML = "";
+        cells.forEach(function (v) {
+          var d = el("div", "", v ? EVO[v] + "<small>" + Math.pow(2, v) + "</small>" : "");
+          d.style.background = v ? EVO_BG[v] : "rgba(255,255,255,.06)";
+          grid.appendChild(d);
+        });
+        info.querySelector("b").textContent = de(score);
+      }
+      function key(e) { var d = keyDir(e); if (d) { e.preventDefault(); move(d); } }
+      document.addEventListener("keydown", key);
+      onSwipe(grid, move);
+      nb.addEventListener("click", reset);
+      reset();
+      return function () { document.removeEventListener("keydown", key); };
+    }
+  };
+
+  // ================= 8) Klausur-Minesweeper =================
+  GAMES.mines = {
+    icon: "📝", name: "Klausur-Minesweeper", desc: "Finde alle sicheren Felder. 10 Klausuren 📝 sind versteckt. Rechtsklick (oder 🚩-Modus) = Fahne.",
+    bestText: function () { return best("mines") != null ? "Bestzeit: " + best("mines") + " s" : ""; },
+    start: function (root) {
+      var N = 9, M = 10;
+      var info = el("div", "mg-info", "<span>📝 übrig: <b>10</b></span><span>Zeit: <i>0</i> s</span><span>Bestzeit: " + (best("mines") != null ? best("mines") + " s" : "–") + "</span>");
+      var grid = el("div", "mg-mines"), msg = el("div", "mg-msg", "Erster Klick ist immer sicher.");
+      var row = el("div", "mg-row"), fb = el("button", "sec", "🚩-Modus: aus"), nb = el("button", "sec", "🔄 Neu");
+      row.appendChild(fb); row.appendChild(nb);
+      root.appendChild(info); root.appendChild(grid); root.appendChild(msg); root.appendChild(row);
+      var mine, open, flag, started, done, t0, timer, flagMode = false, divs = [];
+      function nb8(i) {
+        var r = (i / N) | 0, c = i % N, out = [];
+        for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+          if (!dr && !dc) continue;
+          var rr = r + dr, cc = c + dc;
+          if (rr >= 0 && rr < N && cc >= 0 && cc < N) out.push(rr * N + cc);
+        }
+        return out;
+      }
+      function count(i) { return nb8(i).filter(function (j) { return mine[j]; }).length; }
+      function reset() {
+        mine = []; open = []; flag = []; started = false; done = false; clearInterval(timer);
+        for (var i = 0; i < N * N; i++) { mine.push(false); open.push(false); flag.push(false); }
+        info.querySelector("i").textContent = 0; msg.textContent = "Erster Klick ist immer sicher.";
+        draw();
+      }
+      function place(safe) {
+        var forbidden = nb8(safe).concat([safe]), placed = 0;
+        while (placed < M) { var k = rint(0, N * N - 1); if (!mine[k] && forbidden.indexOf(k) < 0) { mine[k] = true; placed++; } }
+        started = true; t0 = Date.now();
+        timer = setInterval(function () { info.querySelector("i").textContent = Math.floor((Date.now() - t0) / 1000); }, 500);
+      }
+      function reveal(i) {
+        if (open[i] || flag[i]) return;
+        open[i] = true;
+        if (!mine[i] && count(i) === 0) nb8(i).forEach(reveal);
+      }
+      function click(i, asFlag) {
+        if (done || open[i]) return;
+        if (asFlag) { flag[i] = !flag[i]; draw(); return; }
+        if (flag[i]) return;
+        if (!started) place(i);
+        if (mine[i]) {
+          done = true; clearInterval(timer);
+          mine.forEach(function (m, k) { if (m) open[k] = true; });
+          msg.textContent = rnd(["Durchgefallen 💀", "Klausur erwischt 📝💥", "Nachschreibtermin! 🥀"]);
+          draw(); divs[i].classList.add("boom"); return;
+        }
+        reveal(i);
+        var safeLeft = 0; for (var k = 0; k < N * N; k++) if (!mine[k] && !open[k]) safeLeft++;
+        if (!safeLeft) {
+          done = true; clearInterval(timer);
+          var s = Math.max(1, Math.round((Date.now() - t0) / 1000)), rec = record("mines", s, true);
+          msg.textContent = (rec ? "🏆 Neue Bestzeit: " : "Bestanden! 🎓 ") + s + " s";
+          info.lastChild.textContent = "Bestzeit: " + best("mines") + " s";
+          reward(Math.max(500, 6000 - s * 40), "Minesweeper in " + s + " s");
+        }
+        draw();
+      }
+      function draw() {
+        grid.innerHTML = ""; divs = [];
+        var flags = 0;
+        for (var i = 0; i < N * N; i++) {
+          var d = el("div");
+          if (flag[i]) flags++;
+          if (open[i]) {
+            d.className = "o";
+            if (mine[i]) d.textContent = "📝";
+            else { var c = count(i); if (c) { d.textContent = c; d.style.color = ["", "#5aa9ff", "#51cf66", "#ff6b6b", "#c77dff", "#ffd166", "#5ff0d8", "#fff", "#aaa"][c]; } }
+          } else if (flag[i]) d.textContent = "🚩";
+          (function (k) {
+            d.addEventListener("click", function () { click(k, flagMode); });
+            d.addEventListener("contextmenu", function (e) { e.preventDefault(); click(k, true); });
+          })(i);
+          grid.appendChild(d); divs.push(d);
+        }
+        info.querySelector("b").textContent = M - flags;
+      }
+      fb.addEventListener("click", function () { flagMode = !flagMode; fb.textContent = "🚩-Modus: " + (flagMode ? "an" : "aus"); });
+      nb.addEventListener("click", reset);
+      reset();
+      return function () { clearInterval(timer); };
+    }
+  };
+
+  // ================= 9) Wal-Snake =================
+  GAMES.snake = {
+    icon: "🦐", name: "Wal-Snake", desc: "Der Wal frisst Krill 🦐 und wird länger. Nicht gegen die Wand oder sich selbst! Pfeiltasten/WASD oder wischen.",
+    bestText: function () { return best("snake") != null ? "Rekord: " + best("snake") + " Krill" : ""; },
+    start: function (root) {
+      var C = 20, R = 14, S = 26, W = C * S, H = R * S;
+      var info = el("div", "mg-info", "<span>Krill: <b>0</b></span><span>Rekord: " + (best("snake") || 0) + "</span>");
+      var cv = el("canvas", "mg-canvas"); cv.width = W; cv.height = H;
+      var msg = el("div", "mg-msg", "Pfeiltaste, Klick oder Wischen zum Starten");
+      root.appendChild(info); root.appendChild(cv); root.appendChild(msg);
+      var ctx = cv.getContext("2d"), snake, dir, nextDir, food, gold, score, state = "ready", timer = null;
+      function freeCell() {
+        while (true) { var p = { x: rint(0, C - 1), y: rint(0, R - 1) };
+          if (!snake.some(function (s) { return s.x === p.x && s.y === p.y; })) return p; }
+      }
+      function reset() { snake = [{ x: 6, y: 7 }, { x: 5, y: 7 }, { x: 4, y: 7 }]; dir = nextDir = { x: 1, y: 0 }; score = 0; food = freeCell(); gold = null; info.querySelector("b").textContent = 0; draw(); }
+      function setDir(d) {
+        var v = { left: { x: -1, y: 0 }, right: { x: 1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } }[d];
+        if (!v || (v.x === -dir.x && v.y === -dir.y)) return;
+        nextDir = v;
+        if (state !== "run") go();
+      }
+      function go() {
+        if (state === "over") reset();
+        state = "run"; msg.textContent = "";
+        clearTimeout(timer); step();
+      }
+      function step() {
+        dir = nextDir;
+        var h = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+        if (h.x < 0 || h.y < 0 || h.x >= C || h.y >= R || snake.some(function (s) { return s.x === h.x && s.y === h.y; })) return die();
+        snake.unshift(h);
+        if (h.x === food.x && h.y === food.y) { score++; food = freeCell(); if (!gold && Math.random() < 0.2) gold = { p: freeCell(), t: 40 }; }
+        else if (gold && h.x === gold.p.x && h.y === gold.p.y) { score += 5; gold = null; snake.push(snake[snake.length - 1]); }
+        else snake.pop();
+        if (gold && --gold.t <= 0) gold = null;
+        info.querySelector("b").textContent = score;
+        draw();
+        timer = setTimeout(step, Math.max(60, 140 - score * 3));
+      }
+      function die() {
+        state = "over";
+        var rec = record("snake", score);
+        msg.textContent = (rec && score ? "🏆 Neuer Rekord: " : "💀 Bonk. ") + score + " Krill · Klicken für neuen Versuch";
+        info.lastChild.textContent = "Rekord: " + best("snake");
+        if (score >= 20) reward(score * 100, "Wal-Snake: " + score);
+      }
+      function draw() {
+        ctx.fillStyle = "#03263b"; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = "rgba(255,255,255,.03)";
+        for (var x = 0; x < C; x++) for (var y = 0; y < R; y++) if ((x + y) % 2) ctx.fillRect(x * S, y * S, S, S);
+        ctx.font = (S - 4) + "px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("🦐", food.x * S + S / 2, food.y * S + S / 2 + 1);
+        if (gold) ctx.fillText("🐟", gold.p.x * S + S / 2, gold.p.y * S + S / 2 + 1);
+        for (var i = snake.length - 1; i > 0; i--) {
+          ctx.fillStyle = "hsl(" + (190 + i * 3) + ",80%," + (60 - Math.min(i, 20)) + "%)";
+          ctx.beginPath(); ctx.arc(snake[i].x * S + S / 2, snake[i].y * S + S / 2, S / 2 - 3, 0, 6.29); ctx.fill();
+        }
+        ctx.save(); ctx.translate(snake[0].x * S + S / 2, snake[0].y * S + S / 2 + 1);
+        if (dir.x > 0) ctx.scale(-1, 1);
+        ctx.font = S + "px sans-serif"; ctx.fillText("🐳", 0, 0); ctx.restore();
+      }
+      function key(e) { var d = keyDir(e); if (d) { e.preventDefault(); setDir(d); } }
+      document.addEventListener("keydown", key);
+      onSwipe(cv, setDir);
+      cv.addEventListener("click", function () { if (state !== "run") go(); });
+      reset();
+      return function () { clearTimeout(timer); document.removeEventListener("keydown", key); };
+    }
+  };
+
+  // ================= 10) Mitschreib-Simulator =================
+  var TYPE_WORDS = ["an der Stelle", "klausurrelevant", "Folie", "Integral", "Matrix", "Hörsaal", "Mensa", "Aura", "Beamer", "Fragen",
+                    "Wiederholung", "Semester", "Skibidi", "Ohio", "Mewing", "Tralalero", "Vorlesung", "Übungsblatt", "Prüfung",
+                    "Definition", "Beweis", "Sigma", "Kaffee", "Pause", "wie gesagt", "Tafel", "Skript", "Wal", "Krill", "Rizz"];
+  GAMES.typing = {
+    icon: "⌨️", name: "Mitschreib-Simulator", desc: "Wörter fallen von der Tafel – abtippen, bevor sie unten ankommen. 3 Leben.",
+    bestText: function () { return best("typing") != null ? "Rekord: " + best("typing") + " Wörter" : ""; },
+    start: function (root) {
+      var info = el("div", "mg-info", "<span>Wörter: <b>0</b></span><span>Leben: <i>❤️❤️❤️</i></span><span>Rekord: " + (best("typing") || 0) + "</span>");
+      var box = el("div", "mg-type"), inp = el("input"), msg = el("div", "mg-msg", "Tippen startet das Spiel");
+      inp.placeholder = "hier mitschreiben …"; inp.className = "mg-type-in"; inp.autocomplete = "off"; inp.spellcheck = false;
+      root.appendChild(info); root.appendChild(box); root.appendChild(inp); root.appendChild(msg);
+      var words = [], score = 0, lives = 3, running = false, raf = null, last = 0, spawnIn = 0;
+      function start() { running = true; score = 0; lives = 3; words.forEach(function (w) { w.el.remove(); }); words = []; spawnIn = 0; last = performance.now(); msg.textContent = ""; upd(); raf = requestAnimationFrame(loop); }
+      function upd() { info.querySelector("b").textContent = score; info.querySelector("i").textContent = lives > 0 ? "❤️".repeat(lives) : "💀"; }
+      function loop(t) {
+        var dt = Math.min(50, t - last) / 1000; last = t;
+        spawnIn -= dt;
+        if (spawnIn <= 0) {
+          var w = { text: rnd(TYPE_WORDS), y: 0, el: el("div", "w") };
+          w.el.textContent = w.text; w.el.style.left = rint(2, 70) + "%";
+          box.appendChild(w.el); words.push(w);
+          spawnIn = Math.max(0.9, 2.4 - score * 0.06);
+        }
+        var sp = 34 + score * 2.2, hb = box.clientHeight - 24;
+        words = words.filter(function (w) {
+          w.y += sp * dt; w.el.style.top = w.y + "px";
+          if (w.y > hb) { w.el.remove(); lives--; upd(); box.classList.add("miss"); setTimeout(function () { box.classList.remove("miss"); }, 200); return false; }
+          return true;
+        });
+        if (lives <= 0) return end();
+        raf = requestAnimationFrame(loop);
+      }
+      function end() {
+        running = false; cancelAnimationFrame(raf);
+        var rec = record("typing", score);
+        msg.textContent = (rec && score ? "🏆 Neuer Rekord: " : "Mitschrift verloren 📉 ") + score + " Wörter · Tippen für neue Runde";
+        info.lastChild.textContent = "Rekord: " + best("typing");
+        if (score >= 25) reward(score * 80, "Mitschreib-Simulator");
+      }
+      inp.addEventListener("input", function () {
+        if (!running) { start(); }
+        var v = inp.value.trim().toLowerCase();
+        for (var i = 0; i < words.length; i++) {
+          if (words[i].text.toLowerCase() === v) {
+            words[i].el.remove(); words.splice(i, 1); score++; upd(); inp.value = ""; return;
+          }
+        }
+      });
+      setTimeout(function () { inp.focus(); }, 50);
+      return function () { cancelAnimationFrame(raf); };
+    }
+  };
+
+  // ================= 11) Aura-Clicker (Idle) =================
+  var UPGRADES = [
+    ["krill", "🦐 Krill-Farm", 15, 0.5, 0], ["mew", "🤫 Mewing-Kurs", 60, 0, 1], ["boot", "🛶 Aura-Boot", 150, 3, 0],
+    ["tral", "🦈 Tralalero-Fanclub", 700, 12, 0], ["rizz", "😏 Rizz-Seminar", 2500, 0, 15], ["sigma", "🗿 Sigma-Akademie", 4000, 45, 0],
+    ["ohio", "🌽 Ohio-Portal", 20000, 180, 0], ["wal", "🐳 Blauwal-Rat", 120000, 900, 0]
+  ];
+  function clicker() {
+    if (!data.clicker) data.clicker = { aura: 0, total: 0, owned: {}, ts: Date.now() };
+    var c = data.clicker, now = Date.now();
+    c.aura += rate() * Math.min(8 * 3600, (now - c.ts) / 1000);   // läuft auch weiter, wenn die Seite zu ist (max. 8 Std.)
+    c.ts = now;
+    return c;
+  }
+  function owned(k) { return (data.clicker && data.clicker.owned[k]) || 0; }
+  function rate() { return UPGRADES.reduce(function (s, u) { return s + u[3] * owned(u[0]); }, 0); }
+  function perClick() { return 1 + UPGRADES.reduce(function (s, u) { return s + u[4] * owned(u[0]); }, 0); }
+  function cost(u) { return Math.ceil(u[2] * Math.pow(1.15, owned(u[0]))); }
+  function fmtA(n) { return n >= 1e6 ? de(Math.round(n / 1e5) / 10) + " Mio." : de(Math.floor(n)); }
+  GAMES.clicker = {
+    icon: "🗿", name: "Aura-Clicker", desc: "Klick den Moai, kauf Upgrades, farme Aura. Läuft im Hintergrund weiter – auch wenn die Seite zu ist.",
+    bestText: function () { return data.clicker ? "Aura: " + fmtA(clicker().aura) : ""; },
+    start: function (root) {
+      var info = el("div", "mg-info", "<span>Aura: <b>0</b></span><span><i>0</i>/s</span><span>pro Klick: <u>1</u></span>");
+      var big = el("div", "mg-moai", "🗿"), shop = el("div", "mg-shop");
+      root.appendChild(info); root.appendChild(big); root.appendChild(shop);
+      function render() {
+        var c = clicker();
+        info.querySelector("b").textContent = fmtA(c.aura);
+        info.querySelector("i").textContent = de(Math.round(rate() * 10) / 10);
+        info.querySelector("u").textContent = de(perClick());
+        Array.prototype.forEach.call(shop.children, function (b, i) {
+          var u = UPGRADES[i];
+          b.disabled = c.aura < cost(u);
+          b.querySelector("em").textContent = fmtA(cost(u)) + " Aura";
+          b.querySelector("strong").textContent = owned(u[0]) ? "×" + owned(u[0]) : "";
+        });
+      }
+      UPGRADES.forEach(function (u) {
+        var b = el("button", "", u[1] + " <strong></strong><br><small>" + (u[3] ? "+" + de(u[3]) + "/s" : "+" + u[4] + " pro Klick") + " · <em></em></small>");
+        b.addEventListener("click", function () {
+          var c = clicker(), k = cost(u);
+          if (c.aura < k) return;
+          c.aura -= k; c.owned[u[0]] = owned(u[0]) + 1; save(); render();
+        });
+        shop.appendChild(b);
+      });
+      big.addEventListener("pointerdown", function (e) {
+        var c = clicker(), n = perClick();
+        c.aura += n; c.total += n; render();
+        var f = el("span", "mg-plus", "+" + de(n));
+        var r = big.getBoundingClientRect();
+        f.style.left = (e.clientX - r.left) + "px"; f.style.top = (e.clientY - r.top) + "px";
+        big.appendChild(f); setTimeout(function () { f.remove(); }, 800);
+        big.classList.remove("bop"); void big.offsetWidth; big.classList.add("bop");
+      });
+      render();
+      var iv = setInterval(function () { render(); save(); }, 500);
+      return function () { clearInterval(iv); clicker(); save(); };
+    }
+  };
+
+  // ================= 12) Tic-Tac-Toe gegen den Dozenten =================
+  var TTT_LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+  function tttWinner(b) {
+    for (var i = 0; i < 8; i++) { var l = TTT_LINES[i]; if (b[l[0]] && b[l[0]] === b[l[1]] && b[l[0]] === b[l[2]]) return b[l[0]]; }
+    return b.indexOf(null) < 0 ? "draw" : null;
+  }
+  function minimax(b, me) {
+    var w = tttWinner(b);
+    if (w === "D") return { s: 1 }; if (w === "P") return { s: -1 }; if (w === "draw") return { s: 0 };
+    var bestM = null;
+    for (var i = 0; i < 9; i++) if (!b[i]) {
+      b[i] = me ? "D" : "P";
+      var r = minimax(b, !me).s;
+      b[i] = null;
+      if (!bestM || (me ? r > bestM.s : r < bestM.s)) bestM = { s: r, i: i };
+    }
+    return bestM;
+  }
+  GAMES.ttt = {
+    icon: "❌", name: "Tic-Tac-Toe vs. Dozent", desc: "Du 🐳 gegen den Dozenten 👨‍🏫. Er ist fast unschlagbar – außer er ist abgelenkt.",
+    bestText: function () { var t = data.ttt; return t ? "Bilanz: " + t.w + "S / " + t.d + "U / " + t.l + "N" : ""; },
+    start: function (root) {
+      if (!data.ttt) data.ttt = { w: 0, d: 0, l: 0 };
+      var info = el("div", "mg-info", ""), grid = el("div", "mg-ttt"), msg = el("div", "mg-msg");
+      var row = el("div", "mg-row"), nb = el("button", "sec", "🔄 Neue Runde");
+      row.appendChild(nb);
+      root.appendChild(info); root.appendChild(grid); root.appendChild(msg); root.appendChild(row);
+      var b, done, t = null;
+      var QUIPS = ["„Interessanter Zug. Falsch, aber interessant.“", "„Das hatten wir letzte Woche.“", "„An der Stelle setze ich hierhin.“",
+                   "„Ist das klausurrelevant? Ja.“", "„Gibt es Fragen zu meinem Zug?“"];
+      function stats() { info.innerHTML = "<span>Siege: <b>" + data.ttt.w + "</b></span><span>Unentschieden: " + data.ttt.d + "</span><span>Niederlagen: " + data.ttt.l + "</span>"; }
+      function reset() { b = [null, null, null, null, null, null, null, null, null]; done = false; msg.textContent = "Du fängst an 🐳"; draw(); }
+      function finish(w) {
+        done = true;
+        if (w === "P") { data.ttt.w++; msg.textContent = "🏆 Du hast den Dozenten besiegt! +5000 Aura"; reward(5000, "Dozent im Tic-Tac-Toe besiegt"); }
+        else if (w === "D") { data.ttt.l++; msg.textContent = rnd(["👨‍🏫 „Setzen, sechs.“", "👨‍🏫 „Das üben wir nochmal.“", "👨‍🏫 „Nicht bestanden.“"]); }
+        else { data.ttt.d++; msg.textContent = "Unentschieden 🤝 „Damit kann ich leben.“"; }
+        save(); stats();
+      }
+      function draw() {
+        grid.innerHTML = "";
+        b.forEach(function (v, i) {
+          var d = el("div", "", v === "P" ? "🐳" : v === "D" ? "👨‍🏫" : "");
+          d.addEventListener("click", function () {
+            if (done || b[i]) return;
+            b[i] = "P"; draw();
+            var w = tttWinner(b); if (w) return finish(w);
+            done = true;   // kurz sperren, während der Dozent „nachdenkt“
+            t = setTimeout(function () {
+              done = false;
+              var free = []; b.forEach(function (x, k) { if (!x) free.push(k); });
+              var distracted = Math.random() < 0.25;
+              var m = distracted ? rnd(free) : minimax(b.slice(), true).i;
+              b[m] = "D";
+              msg.textContent = distracted ? "👨‍🏫 ist abgelenkt (Beamer-Problem) …" : rnd(QUIPS);
+              draw();
+              var w2 = tttWinner(b); if (w2) finish(w2);
+            }, 450);
+          });
+          grid.appendChild(d);
+        });
+      }
+      nb.addEventListener("click", reset);
+      stats(); reset();
+      return function () { clearTimeout(t); };
+    }
+  };
+
   // ================= 6) Orakel =================
   // Tipp: Wie oft kommt „an der Stelle“ noch bis Vorlesungsende? Ausgewertet beim Ende des Countdowns.
   GAMES.oracle = {
