@@ -129,6 +129,13 @@ Dabei passiert ständig irgendein Unsinn:
   Streiche alle 20–50 s: läuft rückwärts, springt auf 99 % („War nur Spaß 🙃"), friert ein
   („Keine Rückmeldung"), 9 Nachkommastellen, Prozent in Bananen, Turbo-Modus … und eine
   Restzeit-Anzeige, die meistens lügt. Die echte Prozentzahl steht oben bei „Geschafft".
+- **Brainrot** (`brainrot.js`): Italian-Brainrot-Parade (Tralalero Tralala, Tung Tung Tung
+  Sahur, Bombardiro Crocodilo, Ballerina Cappuccina …), TikTok-Untertitel Wort für Wort mit
+  **Subway-Surfers-Fenster** als „Fokus-Hilfe" (per Button dauerhaft an), **Aura-Zähler**
+  (+1000 Aura für Augenkontakt mit der Uhr, +6767 bei „an der Stelle"), **Brainrot-Pegel**
+  (gesund → cooked → Ohio-Final-Boss → komplett verrottet), Fanum Tax auf den Timer,
+  Skibidi, Mewing-Pause, Aura-Farming-Boot, Chill Guy, NPC-Modus und ein Schalter
+  **„🧠 Brainrot-Sprache"**, der die Seite übersetzt („bro wann ist die Lecture endlich over 💀").
 
 Ton ist standardmäßig aus. Zum Ausprobieren im Zeitraffer:
 `countdown.html?demo=4030&speed=10` (Ende in 4030 s, 10-fache Geschwindigkeit).

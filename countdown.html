@@ -251,6 +251,7 @@
   </div>
 
   <script src="memebar.js"></script>
+  <script src="brainrot.js"></script>
   <script>
   (function () {
     "use strict";
@@ -694,6 +695,7 @@
       $("clock").textContent = clockStr(d);
       $("pct").textContent = pct + " %";
       MemeBar.update((1 - Math.max(R, 0) / total) * 100, R, total);
+      Brainrot.update((1 - Math.max(R, 0) / total) * 100);
 
       if (R === lastR) { if (fmtMode) render(R); return; }   // nur neu zeichnen, wenn nötig (sonst blinkt der Doppelpunkt nie)
       var first = lastR === null;
@@ -756,6 +758,7 @@
         say("🐳 AN DER STELLE! 🐳", 2000, { top: "20%", fontSize: "clamp(1.6rem,5vw,3rem)" });
         rain(["🐳", "🐋"], 12, { up: true, dur: 3 });
         MemeBar.hit();
+        Brainrot.hit();
         log("„an der Stelle“ gehört");
       }
       lastAds = n;
@@ -798,6 +801,7 @@
     })();
 
     MemeBar.mount(trackEl, { speed: SPEED });
+    Brainrot.mount({ speed: SPEED, say: say, toast: toast });
     syncInputs();
     readAds();
     tick();
