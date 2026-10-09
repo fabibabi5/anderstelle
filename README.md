@@ -159,6 +159,12 @@ Dabei passiert ständig irgendein Unsinn:
   `wal-party.html` und `index.html`. Direkt-Link: Adresse mit `#minigames` am Ende, z. B.
   `http://localhost:8000/countdown.html#minigames`.
 
+- **🐋 Noch mehr Wale** (`wale.js`): dauerhaftes Wal-Aquarium hinter dem Timer (mit Fontänen
+  und Babys, in den letzten 10 Minuten hektischer), ein Wal folgt der Maus, Klick ins Leere
+  lässt einen Wal springen, Zähler „Wale gesichtet". Dazu Banner-Wal mit Botschaften,
+  Blauwal-Sonnenfinsternis, Wal-Sprung über den Timer, Wal-Schule in V-Formation,
+  Wal-Gesang, Wal gegen Krake, „Wal-o-clock" und jede Minute eine Fontäne aus dem Timer.
+
 Ton ist standardmäßig aus. Zum Ausprobieren im Zeitraffer:
 `countdown.html?demo=4030&speed=10` (Ende in 4030 s, 10-fache Geschwindigkeit).
 
