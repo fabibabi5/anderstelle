@@ -95,7 +95,20 @@
     dirty = true;
     notify(entry);
   }
-  function notify(entry) { subs.forEach(function (fn) { try { fn(entry, session); } catch (e) {} }); }
+  var reportedErrors = {};
+  function jsError(err, where) {
+    var msg = (err && (err.message || err)) + "";
+    var at = err && err.stack ? (err.stack.split("\n")[1] || "").trim().replace(/^at\s+/, "").replace(/\(?(?:file|https?):\/\/[^)]*\/([^/)]+)\)?/, "$1") : "";
+    var key = where + msg + at;
+    if (reportedErrors[key]) return;   // gleichen Fehler nur einmal melden
+    reportedErrors[key] = 1;
+    if (global.console) console.error("[Diagnose] " + where + ":", err);
+    push({ k: "error", x: "JS-Fehler (" + where + "): " + msg + (at ? " @ " + at : "") });
+  }
+  function notify(entry) { subs.forEach(function (fn) { try { fn(entry, session); } catch (e) { jsError(e, "Anzeige"); } }); }
+  // Alle unbehandelten Fehler der Seite ins Protokoll – hilft bei „friert ein“-Problemen
+  global.addEventListener("error", function (ev) { jsError(ev.error || ev.message, "Seite"); });
+  global.addEventListener("unhandledrejection", function (ev) { jsError(ev.reason, "Promise"); });
 
   // ---------------- Statistik ----------------
   function computeStats(s) {
@@ -150,7 +163,7 @@
                      "audio-capture": "kein Mikrofon", "not-allowed": "Mikrofon verweigert", "aborted": "abgebrochen",
                      "phrases-not-supported": "Phrasen-Boost nicht verfügbar" }[e.x] || "";
         h = "⚠ Fehler: " + esc(e.x) + (hint ? " – " + hint : "");
-        cls = /no-speech|aborted|phrases/.test(e.x) ? "sys" : "err"; p = "⚠ Fehler: " + e.x + (hint ? " – " + hint : ""); break;
+        cls = /^(no-speech|aborted|phrases-not-supported)$/.test(e.x) ? "sys" : "err"; p = "⚠ Fehler: " + e.x + (hint ? " – " + hint : ""); break;
       case "note": h = esc(e.x); p = e.x; break;
       case "live":
         h = "⚡ Live gezählt (+" + e.n + "): " + highlight(e.x); cls = "live"; p = "[LIVE +" + e.n + "] " + e.x; break;
@@ -264,6 +277,7 @@
       push({ k: "error", x: type });
     },
     note: function (text) { push({ k: "note", x: text }); },
+    jsError: function (err, where) { jsError(err, where || "?"); },
     added: function (n) { if (!session) newSession(); session.cnt += n; dirty = true; notify(null); },
     interim: function (text) { interimNow = text || ""; },
     live: function (text, n) { push({ k: "live", x: text, n: n }); },

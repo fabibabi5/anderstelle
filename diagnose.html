@@ -250,13 +250,19 @@
       B.applyPhrases(r);
       r.onstart = function () { running = true; D.recStart(); setStatus("on", "hört zu …"); };
       r.onresult = function (event) {
-        var res = counter.process(event);
-        D.interim(res.interimText);
-        res.live.forEach(function (h) { D.live(h.text, h.n); });
-        res.kept.forEach(function (k) { D.kept(k.text, k.finalText, k.n); });
-        res.finals.forEach(function (f) { D.final(f.result, f.n); });
-        if (res.added) { localCount += res.added; D.added(res.added); renderCount(); }
+        var res;
+        try { res = counter.process(event); }
+        catch (err) { D.jsError(err, "Zähler"); renderInterim(rawInterim(event)); return; }
+        // Live-Text zuerst anzeigen – egal, was danach im Protokoll/der Auswertung passiert
         renderInterim(res.interimText);
+        if (res.added) { localCount += res.added; renderCount(); }
+        try {
+          D.interim(res.interimText);
+          res.live.forEach(function (h) { D.live(h.text, h.n); });
+          res.kept.forEach(function (k) { D.kept(k.text, k.finalText, k.n); });
+          res.finals.forEach(function (f) { D.final(f.result, f.n); });
+          if (res.added) D.added(res.added);
+        } catch (err) { D.jsError(err, "Protokoll"); }
       };
       r.onerror = function (e) {
         D.error(e.error);
@@ -271,6 +277,12 @@
         if (listening) scheduleRestart(); else setStatus("", "pausiert");
       };
       return r;
+    }
+    // Notfall-Anzeige, falls der Zähler selbst scheitert: Live-Text direkt aus Chromes Ergebnis
+    function rawInterim(event) {
+      var t = [];
+      for (var i = event.resultIndex; i < event.results.length; i++) if (!event.results[i].isFinal && event.results[i][0]) t.push(event.results[i][0].transcript);
+      return t.join(" ");
     }
     function scheduleRestart(ms) {
       if (restartTimer) return;
