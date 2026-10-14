@@ -1,7 +1,7 @@
 /*
  * Diagnose für die Spracherkennung – Datenkern + kleines Panel.
  *
- * Benutzt von index.html und wal-party.html (mit Panel unten links) sowie von
+ * Benutzt von zaehler.html und wal-party.html (mit Panel unten links) sowie von
  * diagnose.html (große Diagnose-Seite, ohne Panel).
  *
  * Aufgezeichnet wird pro Sitzung:
@@ -473,7 +473,7 @@
   Diag.statsLine = statsLine;
   Diag.sessionTxt = sessionTxt;
 
-  // ================= Panel (index.html / wal-party.html) =================
+  // ================= Panel (zaehler.html / wal-party.html) =================
   var panel, listEl, statsEl, levelBar, levelPeak, levelText, panelOpen = false, meterRaf = null;
 
   function buildPanel() {

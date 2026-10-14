@@ -9,7 +9,7 @@
  * Wal-2048, Klausur-Minesweeper, Wal-Snake, Mitschreib-Simulator, Aura-Clicker,
  * Tic-Tac-Toe gegen den Dozenten, Orakel.
  *
- * Auf Seiten ohne eigenen Treffer-Hook (index.html, wal-party.html) mit
+ * Auf Seiten ohne eigenen Treffer-Hook (index.html, zaehler.html, wal-party.html) mit
  * { watchCount: true } einbinden – dann liest das Modul den Zähler selbst mit.
  * Direkt öffnen: Seite mit #minigames in der Adresse aufrufen. Rekorde liegen in localStorage ("anderstelle.minigames").
  */
@@ -98,8 +98,8 @@
     // Challenge-Popup
     "#mg-chal{position:fixed;left:12px;bottom:60px;z-index:78;max-width:min(340px,calc(100vw - 24px));background:#05324b;color:#eafcff;border:2px solid #ffd166;",
     "border-radius:16px;padding:12px 14px;font:600 .92rem/1.4 -apple-system,system-ui,sans-serif;box-shadow:0 14px 40px rgba(0,0,0,.5);",
-    "transform:translateX(-120%);transition:transform .45s cubic-bezier(.3,1.4,.4,1)}",
-    "#mg-chal.on{transform:translateX(0)}",
+    "transform:translateX(calc(-100% - 40px));visibility:hidden;transition:transform .45s cubic-bezier(.3,1.4,.4,1),visibility 0s .45s}",
+    "#mg-chal.on{transform:translateX(0);visibility:visible;transition:transform .45s cubic-bezier(.3,1.4,.4,1),visibility 0s}",
     "#mg-chal b{color:#ffd166}#mg-chal .mg-row{justify-content:flex-start;margin-top:8px}",
     "#mg-chal button{font:inherit;font-weight:800;padding:6px 12px;border:none;border-radius:8px;cursor:pointer;background:#5ff0d8;color:#022}",
     "#mg-chal button.sec{background:rgba(255,255,255,.12);color:#eafcff}",

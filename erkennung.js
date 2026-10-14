@@ -1,5 +1,5 @@
 /*
- * Gemeinsame Erkennungs-Logik für index.html und wal-party.html.
+ * Gemeinsame Erkennungs-Logik für zaehler.html und wal-party.html.
  *
  * 1) AnderStelleCounter – zählt Treffer im ZUSAMMENHÄNGENDEN Live-Text und nimmt nie zurück.
  *    - Chrome liefert den Live-Text in mehreren Teilen (sicherer Anfang + unsicherer Rest),

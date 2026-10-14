@@ -1,8 +1,23 @@
 # „an der Stelle"-Zähler
 
 Eine kleine, lokale Web-App, die live mitzählt, wie oft dein Dozent **„an der Stelle"**
-sagt. Läuft komplett über eine einzige `index.html` – keine Frameworks, keine
-Dependencies, kein Build-Schritt.
+sagt – mit Wal-Party, Countdown, Minigames, Auswertung und Diagnose. Reines HTML/JS:
+keine Frameworks, keine Dependencies, kein Build-Schritt (Vosk optional als kleines
+Python-Programm).
+
+## Seiten
+
+Alles startet auf der **Startseite `index.html`** – sie verlinkt auf alle Seiten, und
+jede Seite verlinkt zurück auf die Startseite.
+
+| Seite | Wofür |
+|---|---|
+| `index.html` | **Startseite**: Zählerstand, heute, Rekord, Vosk-Status, Links, Kurzanleitung, Minigames |
+| `wal-party.html` | Zählen mit voller Wal-Party (empfohlen für die Vorlesung) |
+| `zaehler.html` | schlichter Zähler ohne Party (gleicher Zählerstand) |
+| `countdown.html` | Countdown bis Vorlesungsende mit Gags, Meme-Balken, Brainrot, Walen |
+| `auswertung.html` | Statistik über alle Vorlesungen |
+| `diagnose.html` | Diagnose-Labor: Erkennung prüfen, Vosk-Test und -Prüfstand |
 
 ## Starten
 
@@ -18,7 +33,8 @@ Dann in **Google Chrome** öffnen:
 http://localhost:8000
 ```
 
-Auf **Start** klicken und beim ersten Mal den Mikrofonzugriff erlauben.
+Auf der Startseite **Wal-Party** (oder den schlichten **Zähler**) öffnen, auf **Start**
+klicken und beim ersten Mal den Mikrofonzugriff erlauben.
 
 > Die Spracherkennung nutzt die Web Speech API (`webkitSpeechRecognition`) und
 > funktioniert zuverlässig **nur in Chrome** auf dem Desktop. In anderen Browsern
@@ -67,14 +83,13 @@ So bekommt die Spracherkennung das Vorlesungsaudio als „Mikrofon"-Eingang.
 ## 🐳 Party-Version: `wal-party.html`
 
 Zweite, eigenständige Version mit Wal-Partythema – öffne sie unter
-`http://localhost:8000/wal-party.html`. Die schlichte `index.html` bleibt
-unverändert erhalten.
+`http://localhost:8000/wal-party.html`. Der schlichte Zähler liegt in `zaehler.html`.
 
 Bei jedem erkannten „an der Stelle" gibt es volle Party: Konfetti, Emoji-Explosion,
 ein großes Banner, Screen-Flash und einen Airhorn-Sound (per Web Audio, ohne Datei).
 Im Hintergrund schwimmen Wale durch einen animierten Ozean. Zähler, Rekord,
 manuelles ±1 und die Spracherkennung funktionieren wie in der Standard-Version
-(der Zählerstand wird mit `index.html` geteilt).
+(der Zählerstand wird mit `zaehler.html` geteilt).
 
 **Eigene Wal-Fotos/Videos einbinden** (alles lokal, keine Downloads nötig):
 
@@ -90,7 +105,7 @@ sich oben per „🔊 Sound" an-/ausschalten lässt.
 
 ## 🔍 Diagnose-Modus
 
-In `index.html` und `wal-party.html` öffnet der Button **„🔍 Diagnose"** (unten links)
+In `zaehler.html` und `wal-party.html` öffnet der Button **„🔍 Diagnose"** (unten links)
 ein Panel, das zeigt, was die Spracherkennung tatsächlich versteht:
 
 - jeder erkannte Satz inkl. Alternativen und Konfidenz – Treffer ✅ grün,
@@ -126,7 +141,7 @@ mitverfolgen.
 
 ### 🧩 Kombi-Erkennung: Chrome + Vosk (Wal-Party und Zähler)
 
-Auf den Zähl-Seiten (`index.html`, `wal-party.html`) zählen **Chrome und – optional – Vosk
+Auf den Zähl-Seiten (`zaehler.html`, `wal-party.html`) zählen **Chrome und – optional – Vosk
 gemeinsam**. Grundlage ist die Auswertung im Diagnose-Labor (10 Min. Vorlesung, 15 echte
 „an der Stelle“): Chrome allein 10/15 erkannt, Chrome **oder** Vosk ≥ 75 % 13/15 bei
 gleich vielen Fehlalarmen.
@@ -268,9 +283,9 @@ Dabei passiert ständig irgendein Unsinn:
   Rekorde werden im Browser gespeichert, gute Ergebnisse geben Aura. Alle 6–10 Minuten
   kommt eine Minigame-Challenge rein.
 
-  **So kommst du zu den Spielen:** Button **„🎮 Minigames"** unten rechts – in `countdown.html`,
-  `wal-party.html` und `index.html`. Direkt-Link: Adresse mit `#minigames` am Ende, z. B.
-  `http://localhost:8000/countdown.html#minigames`.
+  **So kommst du zu den Spielen:** Kachel **„🎮 Minigames"** auf der Startseite oder Button
+  **„🎮 Minigames"** unten rechts in `countdown.html`, `wal-party.html` und `zaehler.html`.
+  Direkt-Link: Adresse mit `#minigames` am Ende, z. B. `http://localhost:8000/#minigames`.
 
 - **🐋 Noch mehr Wale** (`wale.js`): dauerhaftes Wal-Aquarium hinter dem Timer (mit Fontänen
   und Babys, in den letzten 10 Minuten hektischer), ein Wal folgt der Maus, Klick ins Leere
@@ -305,7 +320,7 @@ setzt beides in Relation:
 
 Hinweis: Der große Zähler bzw. der Reset-Button betrifft nur die Live-Anzeige –
 das zentrale Log bleibt davon unberührt. Es wird ausschließlich über
-„Verlauf löschen" in der Auswertung geleert. Dadurch binden `index.html` und
+„Verlauf löschen" in der Auswertung geleert. Dadurch binden `zaehler.html` und
 `wal-party.html` zusätzlich `tracker.js` ein (weiterhin rein lokal, ohne
 externe Abhängigkeiten).
 

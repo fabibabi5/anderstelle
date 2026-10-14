@@ -1,5 +1,5 @@
 /*
- * Kombi-Erkennung für die Zähl-Seiten (index.html, wal-party.html):
+ * Kombi-Erkennung für die Zähl-Seiten (zaehler.html, wal-party.html):
  * Chrome-Spracherkennung + optional Vosk (lokaler Schlüsselwort-Detektor, vosk/start.sh).
  *
  * Regeln (aus der Diagnose abgeleitet):

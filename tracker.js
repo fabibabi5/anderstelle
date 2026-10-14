@@ -1,6 +1,6 @@
 /*
  * Zentrales Treffer-Log für den „an der Stelle"-Zähler.
- * Wird von allen Versionen (index.html, wal-party.html) eingebunden und
+ * Wird von allen Versionen (zaehler.html, wal-party.html) eingebunden und
  * schreibt in EINE gemeinsame localStorage-Quelle. Die Auswertungsseite
  * (auswertung.html) liest daraus.
  *

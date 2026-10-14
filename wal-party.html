@@ -438,11 +438,9 @@
 
     <footer>
       Erkennung läuft in Chrome; Audio wird zur Verarbeitung an Google-Server gesendet.
-      Zählerstand bleibt beim Reload erhalten (gemeinsam mit der Standard-Version). Transkripte werden nur für die Diagnose lokal im Browser gespeichert (abschaltbar im Diagnose-Panel).
+      Zählerstand bleibt beim Reload erhalten (gemeinsam mit dem schlichten Zähler). Transkripte werden nur für die Diagnose lokal im Browser gespeichert (abschaltbar im Diagnose-Panel).
       Eigene Medien gelten nur für diese Sitzung. Tipp: Dateien <b>wal1.jpg … wal6.mp4</b> im Ordner werden automatisch geladen.<br>
-      <a href="auswertung.html" style="color:var(--accent);">📊 Zur Auswertung</a> ·
-      <a href="countdown.html" style="color:var(--accent);">⏳ Countdown</a> ·
-      <a href="index.html" style="color:var(--accent);">Standard-Version</a>
+      <a href="index.html" style="color:var(--accent);">🏠 Startseite</a>
     </footer>
   </div>
 
@@ -480,7 +478,7 @@
       var MATCH_RE = /\b(?:an|in|am|ander|anner)\s*(?:der|die|dem)?\s*st[eä]l{1,2}en?\b/gi;
 
       // ---------- State ----------
-      var STORAGE_KEY = "anderstelle.count";          // geteilt mit index.html
+      var STORAGE_KEY = "anderstelle.count";          // geteilt mit zaehler.html
       var RECORD_KEY  = "anderstelle.record";
       var count = parseInt(localStorage.getItem(STORAGE_KEY), 10);
       if (isNaN(count) || count < 0) count = 0;
