@@ -13,7 +13,7 @@
  *     mit dem Transkript der letzten 30 s und dem Pegel in dem Moment
  *
  * Speicherung: Ist „aufzeichnen“ an (Standard), landen die Sitzungen lokal im Browser
- * (localStorage "anderstelle.diag.v1", max. 8 Sitzungen), damit diagnose.html sie
+ * (SQLite über datenbank.js, sonst localStorage "anderstelle.diag.v1" mit max. 8 Sitzungen), damit diagnose.html sie
  * auswerten kann. Nichts verlässt den Rechner; abschaltbar im Panel bzw. auf der Seite.
  */
 (function (global) {
@@ -56,7 +56,12 @@
   }
 
   // ---------------- Sitzungen & Speicher ----------------
+  // Mit Datenbank-Server (./start.sh) liegen die Sitzungen in SQLite – ohne Begrenzung auf 8.
+  // localStorage hält dann nur die laufende Sitzung als Notfall-Kopie (wird beim nächsten Laden übernommen).
+  function db() { return global.AnderStelleDB && global.AnderStelleDB.active ? global.AnderStelleDB : null; }
+  var lastDbSave = 0;
   function loadStore() {
+    if (db()) return { sessions: db().diagList() };
     try { var o = JSON.parse(localStorage.getItem(STORE)); if (o && Array.isArray(o.sessions)) return o; } catch (e) {}
     return { sessions: [] };
   }
@@ -73,6 +78,12 @@
     if (!session.e.length && !session.lv.length) return;
     dirty = false;
     session.upd = Date.now();
+    if (db()) {
+      try { localStorage.setItem(STORE, JSON.stringify({ sessions: [session] })); } catch (e) {}
+      if (force === "beacon") { if (db().diagSave(session, true)) localStorage.removeItem(STORE); }
+      else if (force || Date.now() - lastDbSave > 10000) { lastDbSave = Date.now(); db().diagSave(session); }
+      return;
+    }
     var st = loadStore();
     st.sessions = st.sessions.filter(function (s) { return s.id !== session.id; });
     st.sessions.push(session);
@@ -87,7 +98,7 @@
     }
   }
   setInterval(function () { persist(false); }, 3000);
-  global.addEventListener("pagehide", function () { if (session) { session.end = session.end || Date.now(); dirty = true; persist(true); } });
+  global.addEventListener("pagehide", function () { if (session) { session.end = session.end || Date.now(); dirty = true; persist(db() ? "beacon" : true); } });
 
   function push(entry) {
     if (!session) newSession();
@@ -416,13 +427,15 @@
       return st.sort(function (a, b) { return b.start - a.start; });
     },
     deleteSession: function (id) {
+      if (db()) return db().diagRemove(id);
       var st = loadStore(); st.sessions = st.sessions.filter(function (s) { return s.id !== id; });
       try { localStorage.setItem(STORE, JSON.stringify(st)); } catch (e) {}
     },
-    deleteAll: function () { try { localStorage.removeItem(STORE); } catch (e) {} },
+    deleteAll: function () { if (db()) db().diagRemoveAll(); try { localStorage.removeItem(STORE); } catch (e) {} },
     importSession: function (obj) {
       if (!obj || !Array.isArray(obj.e)) throw new Error("Keine Diagnose-Sitzung (JSON-Export) erkannt");
       obj.id = obj.id || Date.now().toString(36); obj.lv = obj.lv || []; obj.imported = true;
+      if (db()) { db().diagSave(obj); return obj; }
       var st = loadStore(); st.sessions = st.sessions.filter(function (s) { return s.id !== obj.id; }); st.sessions.push(obj);
       while (st.sessions.length > MAX_SESSIONS) st.sessions.shift();
       localStorage.setItem(STORE, JSON.stringify(st));

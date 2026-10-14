@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>🐳 „an der Stelle“ – Startseite</title>
+  <script src="datenbank.js"></script>
   <style>
     :root {
       --text: #eafcff; --muted: #9fd3e0; --accent: #5ff0d8; --ok: #51cf66; --warn: #ffd166; --err: #ff6b6b;
@@ -47,6 +48,26 @@
     .stat.vosk.wait i { background: var(--warn); }
     .stat.vosk button { margin-left: auto; font: inherit; font-size: 0.75rem; padding: 3px 8px; border-radius: 7px; border: 1px solid var(--line);
                         background: rgba(255,255,255,0.08); color: var(--text); cursor: pointer; }
+
+    /* Vorlesung & Datenbank */
+    .vbox { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 280px); gap: 12px 18px; align-items: center; margin-bottom: 22px;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+    @media (max-width: 720px) { .vbox { grid-template-columns: 1fr; } }
+    .vbox h2 { margin: 0 0 4px; font-size: 1.05rem; }
+    .vbox .cur { color: var(--muted); font-size: 0.92rem; }
+    .vbox .cur b { color: var(--accent); }
+    .vbox form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .vbox input, .vbox select, .vbox button { font: inherit; font-size: 0.9rem; padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line);
+                                              background: rgba(0,0,0,0.25); color: var(--text); min-width: 0; }
+    .vbox input { flex: 1 1 150px; }
+    .vbox button { background: rgba(95,240,216,0.18); border-color: rgba(95,240,216,0.45); cursor: pointer; font-weight: 700; }
+    .vbox button.ghost { background: rgba(255,255,255,0.06); border-color: var(--line); font-weight: 600; }
+    .vbox .db { text-align: right; font-size: 0.85rem; color: var(--muted); display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+    @media (max-width: 720px) { .vbox .db { text-align: left; align-items: flex-start; } }
+    .vbox .db a { color: var(--accent); }
+    .vbox .db code { word-break: break-all; }
+    .dbdot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: var(--warn); }
+    .dbdot.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(81,207,102,0.25); }
 
     /* Kacheln */
     .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
@@ -101,6 +122,22 @@
       <div class="stat vosk" id="voskBox"><b><i></i><span id="voskText">prüfe …</span><button id="voskRetry" title="Erneut prüfen">↻</button></b><span>Vosk-Server (optional)</span></div>
     </div>
 
+    <section class="vbox" id="vbox">
+      <div>
+        <h2>📚 Vorlesung</h2>
+        <div class="cur" id="vCur">Keine Vorlesung ausgewählt – Treffer zählen trotzdem, nur ohne Zuordnung.</div>
+        <form id="vForm" autocomplete="off">
+          <select id="vPick" title="Frühere Vorlesung wieder auswählen"><option value="">– frühere Vorlesung –</option></select>
+          <input id="vFach" placeholder="Fach, z. B. Analysis II" maxlength="120" list="vFaecher" />
+          <input id="vDozent" placeholder="Dozent:in" maxlength="120" list="vDozenten" />
+          <datalist id="vFaecher"></datalist><datalist id="vDozenten"></datalist>
+          <button type="submit">▶︎ Vorlesung starten</button>
+          <button type="button" class="ghost" id="vEnd" hidden>⏹ beenden</button>
+        </form>
+      </div>
+      <div class="db" id="dbBox"></div>
+    </section>
+
     <nav class="grid" aria-label="Alle Seiten">
       <a class="tile main" href="wal-party.html">
         <span class="tag">für die Vorlesung</span>
@@ -144,8 +181,8 @@
     <section class="howto">
       <h2>🚀 So geht's in der Vorlesung</h2>
       <ol>
-        <li>Im Projektordner einen lokalen Server starten: <code>python3 -m http.server 8000</code> und in <b>Google Chrome</b> <code>http://localhost:8000</code> öffnen.</li>
-        <li><b>Optional, aber empfohlen:</b> in einem zweiten Terminal <code>./vosk/start.sh</code> – dann zählt Vosk mit und erwischt deutlich mehr. Der Status oben wird grün.</li>
+        <li>Im Projektordner <code>./start.sh</code> ausführen – das startet Webseiten, Datenbank und (falls eingerichtet) Vosk zusammen. Dann in <b>Google Chrome</b> <code>http://localhost:8000</code> öffnen.</li>
+        <li>Oben die <b>Vorlesung</b> eintragen (Fach + Dozent:in) – dann landet jeder Treffer in der Statistik pro Vorlesung und Dozent:in.</li>
         <li><b>Wal-Party</b> öffnen, auf <b>Start</b> klicken und das Mikrofon erlauben.</li>
         <li>Mac-Tipp: Während Chrome das Mikro nutzt, im Kontrollzentrum „Mikrofonmodus“ auf <b>Standard</b> stellen (nicht „Sprachisolierung“). Tab im Vordergrund lassen.</li>
         <li>Lag die Erkennung daneben? Im Panel <b>🔍 Diagnose</b> mit <b>V</b> (verpasst) bzw. <b>F</b> (falsch gezählt) markieren – das korrigiert den Zähler und hilft beim Verbessern.</li>
@@ -154,7 +191,7 @@
 
     <footer>
       Erkennung über Chrome (Audio geht zur Verarbeitung an Google) und optional Vosk (läuft komplett lokal).
-      Zählerstand, Statistik und Diagnose-Sitzungen bleiben im Browser auf diesem Rechner.
+      Zählerstand, Statistik und Diagnose-Sitzungen bleiben auf diesem Rechner – in der Datenbank <code>daten/anderstelle.db</code> (mit <code>./start.sh</code>) bzw. sonst nur im Browser.
     </footer>
   </main>
 
@@ -194,7 +231,7 @@
         if (done) return; done = true;
         box.className = "stat vosk " + (ok ? "ok" : "bad");
         txt.textContent = ok ? "läuft" + (info ? " · " + info : "") : "aus";
-        box.title = ok ? "Vosk zählt in Wal-Party und Zähler automatisch mit." : "Optional: im Terminal ./vosk/start.sh starten – ohne Vosk zählt Chrome allein.";
+        box.title = ok ? "Vosk zählt in Wal-Party und Zähler automatisch mit." : "Optional: ./start.sh startet Vosk mit (Probleme? daten/vosk.log) – ohne Vosk zählt Chrome allein.";
         try { ws && ws.close(); } catch (e) {}
       }
       try { ws = new WebSocket("ws://127.0.0.1:2700"); } catch (e) { return finish(false); }
@@ -205,6 +242,61 @@
     }
     checkVosk();
     $("voskRetry").addEventListener("click", checkVosk);
+
+    // ---------- Vorlesung & Datenbank ----------
+    var DB = window.AnderStelleDB;
+    function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+    function vLabel(v) { return (v.fach || "ohne Fach") + (v.dozent ? " · " + v.dozent : ""); }
+    function renderDb() {
+      var box = $("dbBox");
+      if (DB && DB.active) {
+        var st = DB.state || {}, n = (st.log && st.log.events || []).length;
+        box.innerHTML = "<span><i class='dbdot ok'></i>Datenbank verbunden</span>" +
+          "<span><code>" + esc(st.db || "daten/anderstelle.db") + "</code> · " + n + " Einträge</span>" +
+          "<span><a href='/api/backup' download>💾 Sicherung herunterladen</a></span>";
+      } else {
+        box.innerHTML = "<span><i class='dbdot'></i>keine Datenbank</span>" +
+          "<span>Daten nur im Browser. Für die Datenbank im Projektordner <code>./start.sh</code> starten.</span>";
+      }
+    }
+    function renderVorlesung() {
+      if (!DB || !DB.active) { $("vCur").textContent = "Vorlesungen und Dozent:innen gibt es mit der Datenbank (./start.sh)."; return; }
+      var v = DB.vorlesung();
+      $("vCur").innerHTML = v ? "Läuft gerade: <b>" + esc(vLabel(v)) + "</b> – alle Treffer werden ihr zugeordnet."
+                              : "Keine Vorlesung ausgewählt – Treffer zählen trotzdem, nur ohne Zuordnung.";
+      $("vEnd").hidden = !v;
+    }
+    function fillLists(list) {
+      var uniq = function (k) { var seen = {}; return list.map(function (x) { return x[k]; }).filter(function (x) { if (!x || seen[x]) return false; seen[x] = 1; return true; }); };
+      $("vFaecher").innerHTML = uniq("fach").map(function (x) { return "<option value='" + esc(x) + "'>"; }).join("");
+      $("vDozenten").innerHTML = uniq("dozent").map(function (x) { return "<option value='" + esc(x) + "'>"; }).join("");
+      var seen = {};
+      $("vPick").innerHTML = "<option value=''>– frühere Vorlesung –</option>" + list.filter(function (x) {
+        var k = (x.fach || "") + "|" + (x.dozent || ""); if (seen[k]) return false; seen[k] = 1; return true;
+      }).slice(0, 30).map(function (x) { return "<option value='" + esc(x.id) + "'>" + esc(vLabel(x)) + "</option>"; }).join("");
+    }
+    if (DB && DB.active) {
+      fillLists(DB.vorlesungen || []);
+      $("vPick").addEventListener("change", function () {
+        var v = (DB.vorlesungen || []).filter(function (x) { return x.id === $("vPick").value; })[0];
+        if (v) { $("vFach").value = v.fach || ""; $("vDozent").value = v.dozent || ""; }
+      });
+      $("vForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var fach = $("vFach").value.trim(), doz = $("vDozent").value.trim();
+        if (!fach && !doz) { $("vFach").focus(); return; }
+        // Jede Vorlesung (jeder Termin) bekommt einen eigenen Eintrag – Fach/Dozent:in verbinden sie in der Statistik
+        DB.createVorlesung(fach, doz, function (v) {
+          if (!v) { alert("Konnte die Vorlesung nicht speichern – läuft der Server noch?"); return; }
+          DB.setVorlesung(v); fillLists(DB.vorlesungen); renderVorlesung();
+        });
+      });
+      $("vEnd").addEventListener("click", function () { DB.setVorlesung(null); renderVorlesung(); });
+    } else {
+      $("vForm").hidden = true;
+    }
+    renderDb(); renderVorlesung();
+    addEventListener("storage", renderVorlesung);
 
     // ---------- Minigames direkt hier ----------
     MiniGames.mount({ watchCount: true });

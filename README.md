@@ -21,17 +21,24 @@ jede Seite verlinkt zurück auf die Startseite.
 
 ## Starten
 
-Im Projektordner einen simplen lokalen Server starten:
+Im Projektordner **ein** Befehl – startet Webseiten, SQLite-Datenbank und (optional) Vosk:
 
 ```bash
-python3 -m http.server 8000
+./start.sh                  # alles, öffnet Chrome auf dem Mac automatisch
+./start.sh --no-vosk        # nur Webseiten + Datenbank
+./start.sh --model gross    # mit großem Vosk-Modell
+./start.sh --port 8001      # anderer Port
 ```
 
-Dann in **Google Chrome** öffnen:
+Dann in **Google Chrome** öffnen (passiert auf dem Mac automatisch):
 
 ```
 http://localhost:8000
 ```
+
+Beenden mit **Strg+C** – stoppt beide Server. Vosk-Ausgaben stehen in `daten/vosk.log`.
+(Ein simpler `python3 -m http.server 8000` geht weiterhin – dann aber ohne Datenbank,
+alles bleibt nur im Browser.)
 
 Auf der Startseite **Wal-Party** (oder den schlichten **Zähler**) öffnen, auf **Start**
 klicken und beim ersten Mal den Mikrofonzugriff erlauben.
@@ -46,10 +53,10 @@ Chrome verarbeitet die Spracherkennung **nicht rein lokal**: Das aufgenommene
 Audio wird zur Erkennung an **Google-Server** gesendet. Nutze die App also nur,
 wenn das für deinen Kontext in Ordnung ist.
 
-Der **Zählerstand** wird lokal im Browser (`localStorage`) gespeichert und bleibt
-nach einem Reload erhalten. Die **Transkripte** werden nur für die Diagnose lokal im
-Browser gespeichert (`localStorage`, max. 8 Sitzungen), damit `diagnose.html` sie
-auswerten kann. Das lässt sich im Diagnose-Panel bzw. auf der Diagnose-Seite mit
+Zählerstand, Treffer-Log, Vorlesungen und Diagnose-Sitzungen landen in der lokalen
+**SQLite-Datenbank** `daten/anderstelle.db` (mit `./start.sh`, siehe unten), sonst nur im
+Browser (`localStorage`, Diagnose dann max. 8 Sitzungen). Die **Transkripte** werden nur
+für die Diagnose gespeichert. Das lässt sich im Diagnose-Panel bzw. auf der Diagnose-Seite mit
 „💾 aufzeichnen“ abschalten; dort kann man gespeicherte Sitzungen auch löschen.
 Nichts davon verlässt den Rechner.
 
@@ -296,10 +303,34 @@ Dabei passiert ständig irgendein Unsinn:
 Ton ist standardmäßig aus. Zum Ausprobieren im Zeitraffer:
 `countdown.html?demo=4030&speed=10` (Ende in 4030 s, 10-fache Geschwindigkeit).
 
+## 🗄️ Datenbank (SQLite)
+
+`./start.sh` startet `server/server.py` (nur Python-Standardbibliothek, lauscht nur auf
+`127.0.0.1`). Er liefert die Seiten aus und speichert alles in **`daten/anderstelle.db`**:
+
+| Tabelle | Inhalt |
+|---|---|
+| `kv` | Zählerstand, Rekord, Minigames, Countdown, Einstellungen … |
+| `vorlesungen` | Fach, Dozent:in, Datum |
+| `sitzungen` | wann eine Zähl-Seite lief (inkl. Vorlesung) |
+| `treffer` | jedes „an der Stelle“: Zeit, Typ, **Detektor (Chrome/Vosk/manuell)**, Vosk-Sicherheit, Vorlesung |
+| `diagnose` | Diagnose-Sitzungen – jetzt **unbegrenzt** viele |
+
+- **Übernahme:** Beim ersten Öffnen mit Datenbank werden die bisherigen Browser-Daten
+  automatisch übernommen (nichts geht verloren, doppelt wird nichts).
+- **Vorlesung eintragen:** Auf der Startseite Fach + Dozent:in eintragen und „Vorlesung
+  starten“ – alle Treffer werden ihr zugeordnet (läuft max. 6 h, dann automatisch aus).
+  Die **Auswertung** zeigt dann ein **Dozent:innen-Ranking** (Ø pro Vorlesung, pro Minute,
+  Rekord) und eine Tabelle aller Vorlesungen mit Chrome/Vosk/manuell-Aufteilung.
+- **Sicherung:** Beim Start einmal täglich automatisch nach `daten/backup/` (die letzten 14),
+  zusätzlich „💾 Sicherung herunterladen“ (JSON) auf der Startseite.
+- Die Datei kannst du auch direkt ansehen, z. B. `sqlite3 daten/anderstelle.db "select * from treffer"`.
+- `daten/` steht in `.gitignore` – deine Daten landen nie im Repository.
+
 ## 📊 Zentrales Treffer-Log & Auswertung
 
-Alle Versionen schreiben in **ein** gemeinsames, dauerhaftes Log im Browser
-(`localStorage`, Key `anderstelle.log.v1`) – über das kleine gemeinsame Skript
+Alle Versionen schreiben in **ein** gemeinsames, dauerhaftes Log (Datenbank-Tabellen
+`sitzungen`/`treffer`, im Browser gespiegelt unter `anderstelle.log.v1`) – über das kleine gemeinsame Skript
 `tracker.js`. Gespeichert werden nur Zeitpunkte und Metadaten, **keine Transkripte**:
 
 - **Sessions** – wann das Programm lief/lauschte (Start, laufendes Ende per Heartbeat,

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Auswertung — „an der Stelle"</title>
+  <script src="datenbank.js"></script>
   <style>
     /* Validierte Dark-Palette (dataviz): Blau=Laufzeit, Orange=Treffer */
     :root {
@@ -113,6 +114,7 @@
     </div>
 
     <div id="content"></div>
+    <div id="lectures"></div>
   </div>
 
   <div id="tip"></div>
@@ -325,10 +327,55 @@
         setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
       });
 
+      // ---------- Vorlesungen & Dozent:innen (nur mit Datenbank, ./start.sh) ----------
+      function escH(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+      function dauer(ms) { var m = Math.round((ms || 0) / 60000); return m >= 60 ? Math.floor(m / 60) + " h " + (m % 60) + " min" : m + " min"; }
+      function renderLectures() {
+        var el = document.getElementById("lectures");
+        var DB = window.AnderStelleDB;
+        if (!DB || !DB.active) {
+          el.innerHTML = "<div class='card'><h2>📚 Vorlesungen &amp; Dozent:innen</h2><p class='hint'>Gibt es mit der Datenbank: im Projektordner <code>./start.sh</code> starten, " +
+            "dann auf der Startseite die Vorlesung eintragen.</p></div>";
+          return;
+        }
+        DB.statistik(function (st) {
+          if (!st || !st.ok) { el.innerHTML = ""; return; }
+          var h = "<div class='card'><h2>👩‍🏫 Dozent:innen-Ranking</h2><p class='hint'>Durchschnittliche „an der Stelle“ pro Vorlesung (netto, inkl. manueller Korrekturen).</p>";
+          if (!st.dozenten.length) h += "<div class='empty-state'>Noch keine Vorlesung eingetragen – auf der Startseite Fach und Dozent:in angeben.</div>";
+          else {
+            h += "<table><thead><tr><th>#</th><th>Dozent:in</th><th class='num'>Vorlesungen</th><th class='num'>Treffer</th><th class='num'>Ø pro Vorlesung</th><th class='num'>pro Minute</th><th class='num'>Rekord</th></tr></thead><tbody>";
+            st.dozenten.forEach(function (d, i) {
+              h += "<tr><td>" + (i === 0 ? "🏆" : i + 1) + "</td><td>" + escH(d.dozent) + "</td><td class='num'>" + d.vorlesungen + "</td><td class='num'>" + d.treffer +
+                   "</td><td class='num'>" + d.schnitt + "</td><td class='num'>" + (d.pro_min == null ? "–" : d.pro_min) + "</td><td class='num'>" + d.rekord + "</td></tr>";
+            });
+            h += "</tbody></table>";
+          }
+          h += "</div><div class='card'><h2>📚 Vorlesungen</h2><p class='hint'>Jeder Termin einzeln. „Vosk“ = Treffer, die nur Vosk gefunden hat (Chrome hätte sie verpasst)." +
+               (st.ohne_vorlesung ? " " + st.ohne_vorlesung + " Treffer ohne Vorlesung sind hier nicht dabei." : "") + "</p>";
+          if (!st.vorlesungen.length) h += "<div class='empty-state'>Noch keine Vorlesungen.</div>";
+          else {
+            h += "<table><thead><tr><th>Datum</th><th>Fach</th><th>Dozent:in</th><th class='num'>Laufzeit</th><th class='num'>Treffer</th><th class='num'>pro Minute</th><th class='num'>Chrome / Vosk / manuell</th></tr></thead><tbody>";
+            st.vorlesungen.forEach(function (v) {
+              var d = new Date(v.erstellt);
+              h += "<tr><td>" + d.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "2-digit" }) + " " +
+                   d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + "</td><td>" + escH(v.fach || "–") + "</td><td>" + escH(v.dozent || "–") +
+                   "</td><td class='num'>" + dauer(v.dauer) + "</td><td class='num'><b>" + v.treffer + "</b></td><td class='num'>" + (v.pro_min == null ? "–" : v.pro_min) +
+                   "</td><td class='num'>" + v.chrome + " / " + v.vosk + " / " + (v.manuell - v.undo) + "</td></tr>";
+            });
+            h += "</tbody></table>";
+          }
+          el.innerHTML = h + "</div>";
+        });
+      }
+      renderLectures();
+      document.getElementById("refresh").addEventListener("click", renderLectures);
+      setInterval(renderLectures, 30000);
+
       document.getElementById("clear").addEventListener("click", function () {
         if (confirm("Gesamtes Treffer-Log unwiderruflich löschen? (Sessions und Treffer aller Versionen)")) {
           AnderStelleTracker.clear();
           render();
+          setTimeout(renderLectures, 600);
         }
       });
 

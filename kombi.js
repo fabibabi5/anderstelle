@@ -154,7 +154,7 @@
     else if (!this.running) { label = "Vosk bereit"; tip = "Vosk startet zusammen mit der Erkennung (▶︎ Start). Klicken schaltet Vosk ab."; }
     else if (this.state === "verbunden") { cls = "ok"; label = "Vosk verbunden"; tip = "Chrome + Vosk (ab " + Math.round(THRESHOLD * 100) + " % Sicherheit) zählen gemeinsam; dieselbe Stelle zählt nur einmal. Klicken schaltet Vosk ab."; }
     else if (this.state === "verbinde") { cls = "wait"; label = "Vosk verbindet …"; tip = "Suche den Vosk-Server auf ws://127.0.0.1:2700 …"; }
-    else { cls = "bad"; label = "Vosk nicht erreichbar"; tip = "Vosk-Server läuft nicht – im Terminal ./vosk/start.sh starten. Bis dahin zählt Chrome allein. Klicken schaltet Vosk ab."; }
+    else { cls = "bad"; label = "Vosk nicht erreichbar"; tip = "Vosk-Server läuft nicht – im Terminal ./start.sh (startet Vosk mit) – Details in daten/vosk.log. Bis dahin zählt Chrome allein. Klicken schaltet Vosk ab."; }
     this.pill.className = cls;
     this.pill.title = tip;
     this.pill.innerHTML = "<i></i>🧩 " + label + (this.extra && this.enabled ? " · <b>+" + this.extra + "</b>" : "");

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>🐳 „an der Stelle" — WAL-PARTY 🐳</title>
+  <script src="datenbank.js"></script>
   <style>
     :root {
       --text: #eafcff;
@@ -575,10 +576,10 @@
       // Kombi-Erkennung: Chrome + optional Vosk (lokaler Server, siehe kombi.js); dieselbe Stelle zählt nur einmal
       var kombi = AnderStelleKombi.create({
         diag: AnderStelleDiag,
-        onVoskHits: function (n) {
+        onVoskHits: function (n, text, conf) {
           addHits(n); renderCount();
           AnderStelleDiag.added(n, "vosk");
-          AnderStelleTracker.logHits(n, "auto", SOURCE, sessionId);
+          AnderStelleTracker.logHits(n, "auto", SOURCE, sessionId, { det: "vosk", conf: conf });
         }
       });
 
@@ -1025,7 +1026,7 @@
           if (res.added > 0) {
             AnderStelleDiag.added(res.added);
             var neu = kombi.fromChrome(res.added);   // schon von Vosk gezählt? dann nicht doppelt
-            if (neu > 0) { addHits(neu); AnderStelleTracker.logHits(neu, "auto", SOURCE, sessionId); }
+            if (neu > 0) { addHits(neu); AnderStelleTracker.logHits(neu, "auto", SOURCE, sessionId, { det: "chrome" }); }
           }
           renderLive(res.interimText.trim());
           renderCount();
