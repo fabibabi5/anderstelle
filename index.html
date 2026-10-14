@@ -340,6 +340,7 @@
   </footer>
 
   <script src="tracker.js"></script>
+  <script src="erkennung.js"></script>
   <script src="diagnose.js"></script>
   <script src="minigames.js"></script>
   <script>
@@ -375,9 +376,8 @@
       var count = parseInt(localStorage.getItem(STORAGE_KEY), 10);  // gezählte Treffer (persistiert)
       if (isNaN(count) || count < 0) count = 0;
 
-      var utteranceCounted = 0;   // bereits gezählte Treffer der laufenden (noch nicht finalen) Äußerung
       var prevCount = count;      // zuletzt angezeigter Wert (für Flash-Effekt)
-      var lastFinalIndex = -1;    // letzter bereits verarbeiteter finaler Result-Index (pro Session)
+      var counter = null;         // AnderStelleCounter (erkennung.js): zählt pro Satzteil, nimmt nie zurück
       var listening = false;      // ist Erkennung aktiv/gewünscht?
       var userStopped = true;     // hat der Nutzer bewusst gestoppt?
       var startTime = null;       // Zeitpunkt des ersten Starts (für Rate)
@@ -541,6 +541,7 @@
         }
         return { text: bestText.trim(), n: bestN };
       }
+      counter = AnderStelleCounter.create({ bestAlternative: bestAlternative });
 
       function updateRate() {
         if (!startTime || hitTimestamps.length === 0) {
@@ -559,6 +560,7 @@
         r.continuous = true;
         r.interimResults = true;  // Zwischenergebnisse für Live-Anzeige
         r.maxAlternatives = 5;    // mehrere Deutungen -> bessere Trefferquote
+        AnderStelleBoost.applyPhrases(r);  // „an der Stelle“ bevorzugen, falls Chrome das kann
 
         r.onstart = function () {
           AnderStelleDiag.recStart();
@@ -569,45 +571,23 @@
 
         r.onresult = function (event) {
           lastActivityAt = Date.now();
-          var interimText = "";
 
-          for (var i = event.resultIndex; i < event.results.length; i++) {
-            var result = event.results[i];
-
-            if (result.isFinal) {
-              // Jeden finalen Result-Index nur einmal verarbeiten.
-              if (i <= lastFinalIndex) continue;
-              lastFinalIndex = i;
-
-              // Beste Alternative wählen: enthält eine der Deutungen die Phrase,
-              // zählt sie – auch wenn das Top-Ergebnis sie "wegrevidiert" hat.
-              var alt = bestAlternative(result);
-              addLogEntry(alt.text || "(leer)");
-
-              // Abgleich mit dem live Gezählten dieser Äußerung.
-              var delta = alt.n - utteranceCounted;
-              if (delta > 0) addHits(delta);
-              else if (delta < 0) removeHits(-delta);
-              utteranceCounted = 0;  // Äußerung abgeschlossen
-              AnderStelleDiag.final(result, alt.n);
-
-              // Zentrales Log: bestätigte Treffer dieser Äußerung festhalten.
-              if (alt.n > 0) AnderStelleTracker.logHits(alt.n, "auto", SOURCE, sessionId);
-            } else {
-              // Auch im Zwischentext die beste Alternative berücksichtigen.
-              interimText += bestAlternative(result).text + " ";
-            }
+          // Treffer pro Satzteil zählen – live sofort, und nie wieder abziehen:
+          // Leise angehängte „an der Stelle“ streicht Google im Endergebnis oft
+          // wieder, obwohl sie live erkannt wurden (siehe erkennung.js).
+          var res = counter.process(event);
+          res.finals.forEach(function (f) {
+            addLogEntry(f.text || "(leer)");
+            AnderStelleDiag.final(f.result, f.n);
+          });
+          res.live.forEach(function (h) { AnderStelleDiag.live(h.text, h.n); });
+          res.kept.forEach(function (k) { AnderStelleDiag.kept(k.text, k.finalText, k.n); });
+          if (res.added > 0) {
+            addHits(res.added);
+            AnderStelleTracker.logHits(res.added, "auto", SOURCE, sessionId);
           }
 
-          // Live mitzählen: Treffer sofort erfassen, sobald sie im Zwischentext auftauchen.
-          var interimN = countMatches(interimText);
-          if (interimN > utteranceCounted) {
-            addHits(interimN - utteranceCounted);
-            utteranceCounted = interimN;
-          }
-          // Weniger Treffer im Zwischentext ignorieren wir hier – das finale Ergebnis korrigiert.
-
-          renderLive(interimText.trim());
+          renderLive(res.interimText.trim());
           renderCount();
         };
 
@@ -638,6 +618,10 @@
             case "aborted":
               // meist durch Stopp ausgelöst – ignorieren
               break;
+            case "phrases-not-supported":
+              // Phrasen-Boost kennt dieses Chrome nicht – abschalten, onend startet neu
+              AnderStelleBoost.phrasesFailed(r);
+              break;
             default:
               setStatus("error", "Fehler: " + event.error);
           }
@@ -647,9 +631,8 @@
         r.onend = function () {
           AnderStelleDiag.recEnd(userStopped);
           running = false;
-          // Zwischenstand der (abgebrochenen) Session verwerfen.
-          lastFinalIndex = -1;
-          utteranceCounted = 0;
+          // Satzteil-Zähler der beendeten Session zurücksetzen (gezählte Treffer bleiben).
+          counter.reset();
           renderLive("");
           renderCount();
 
@@ -675,7 +658,7 @@
           if (userStopped || !listening) return;
           if (running) return;  // läuft bereits wieder
           try {
-            recognition.start();
+            AnderStelleBoost.start(recognition);
             lastActivityAt = Date.now();
             setStatus("listening", "hört zu …");
           } catch (e) {
@@ -691,19 +674,22 @@
         if (!recognition) recognition = createRecognition();
         userStopped = false;
         listening = true;
-        lastFinalIndex = -1;
-        utteranceCounted = 0;
+        counter.reset();
         lastActivityAt = Date.now();
         renderLive("");
         if (!startTime) startTime = Date.now();
         sessionId = AnderStelleTracker.startSession(SOURCE);  // Laufzeit zentral protokollieren
-        try {
-          recognition.start();
-          setStatus("listening", "hört zu …");
-        } catch (e) {
-          // kann werfen, wenn schon gestartet – Watchdog/onend fangen das ab
-          setStatus("listening", "hört zu …");
-        }
+        setStatus("listening", "hört zu …");
+        // Verstärker-Tonspur (falls eingeschaltet) vorbereiten, dann starten
+        AnderStelleBoost.prepare().then(function () {
+          if (!listening || running) return;
+          try {
+            AnderStelleBoost.start(recognition);
+          } catch (e) {
+            // kann werfen, wenn schon gestartet – Neustart-Logik fängt das ab
+            scheduleRestart(300);
+          }
+        });
         updateToggle();
       }
 
@@ -731,7 +717,6 @@
 
       resetBtn.addEventListener("click", function () {
         count = 0;
-        utteranceCounted = 0;
         prevCount = 0;
         renderCount();
         localStorage.setItem(STORAGE_KEY, "0");

@@ -100,6 +100,23 @@ ein Panel, das zeigt, was die Spracherkennung tatsächlich versteht:
 
 Das Log lebt nur im Arbeitsspeicher und wird nicht gespeichert.
 
+### Erkennung: was live gehört wurde, bleibt gezählt
+
+Leise angehängte „… an der Stelle" erkennt Chrome oft im **Live-Zwischenstand**, streicht
+sie im **Endergebnis** aber wieder. Früher wurde der Treffer dann abgezogen – jetzt bleibt
+er (`erkennung.js`). Taucht ein gestrichener Treffer kurz danach in einem anderen Satzteil
+wieder auf, wird er nicht doppelt gezählt. Im Diagnose-Panel erscheinen solche Fälle als
+**⚡ Live erkannt** bzw. **🛟 Gerettet**.
+
+Zusätzlich, jeweils mit automatischer Prüfung, ob dein Chrome das kann:
+
+- **Phrasen-Boost:** sagt Chrome, dass „an der Stelle" wichtig ist. Meldet Chrome
+  „nicht unterstützt", wird er automatisch abgeschaltet.
+- **🎚️ Verstärker (experimentell, im Diagnose-Panel):** 2×/4×/8× plus Kompressor – hebt
+  leise Satzenden an, bevor Chrome das Audio bekommt. Funktioniert nur, wenn Chrome der
+  Erkennung eine eigene Tonspur erlaubt; sonst läuft alles wie bisher mit dem normalen Mikro.
+  Das Panel zeigt an, was aktiv ist.
+
 **Mac-Tipp:** Während Chrome das Mikrofon nutzt, im Kontrollzentrum unter
 „Mikrofonmodus" **Standard** oder **Breites Spektrum** wählen – „Sprachisolierung"
 filtert entfernte Sprecher (den Dozenten!) heraus.

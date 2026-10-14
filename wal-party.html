@@ -449,6 +449,7 @@
   <div id="drop">🐳 Wal-Fotos/Videos hier fallen lassen! 🐋</div>
 
   <script src="tracker.js"></script>
+  <script src="erkennung.js"></script>
   <script src="diagnose.js"></script>
   <script src="minigames.js"></script>
   <script>
@@ -484,9 +485,8 @@
       var record = parseInt(localStorage.getItem(RECORD_KEY), 10);
       if (isNaN(record) || record < count) record = count;
 
-      var utteranceCounted = 0;
       var prevCount = count;
-      var lastFinalIndex = -1;
+      var counter = null;   // AnderStelleCounter (erkennung.js), angelegt nach bestAlternative
       var listening = false;
       var userStopped = true;
       var startTime = null;
@@ -571,6 +571,8 @@
         }
         return { text: bestText.trim(), n: bestN };
       }
+
+      counter = AnderStelleCounter.create({ bestAlternative: bestAlternative });
 
       // ================= PARTY 🐳🎉 =================
       // Ozean-Palette: Türkis, Wasserblau, Tiefsee, Gischt-Weiß, ein Hauch Biolumineszenz-Violett
@@ -991,31 +993,19 @@
         r.continuous = true;
         r.interimResults = true;
         r.maxAlternatives = 5;
+        AnderStelleBoost.applyPhrases(r);   // „an der Stelle“ bevorzugen, falls Chrome das kann
 
         r.onstart = function () { AnderStelleDiag.recStart(); running = true; lastActivityAt = Date.now(); setStatus("listening", "hört zu …"); };
 
         r.onresult = function (event) {
           lastActivityAt = Date.now();
-          var interimText = "";
-          for (var i = event.resultIndex; i < event.results.length; i++) {
-            var result = event.results[i];
-            if (result.isFinal) {
-              if (i <= lastFinalIndex) continue;
-              lastFinalIndex = i;
-              var alt = bestAlternative(result);
-              var delta = alt.n - utteranceCounted;
-              if (delta > 0) addHits(delta);
-              else if (delta < 0) removeHits(-delta);
-              utteranceCounted = 0;
-              AnderStelleDiag.final(result, alt.n);
-              if (alt.n > 0) AnderStelleTracker.logHits(alt.n, "auto", SOURCE, sessionId);
-            } else {
-              interimText += bestAlternative(result).text + " ";
-            }
-          }
-          var interimN = countMatches(interimText);
-          if (interimN > utteranceCounted) { addHits(interimN - utteranceCounted); utteranceCounted = interimN; }
-          renderLive(interimText.trim());
+          // Zählt pro Satzteil und nimmt nie zurück: was live gehört wurde, bleibt (siehe erkennung.js)
+          var res = counter.process(event);
+          res.live.forEach(function (h) { AnderStelleDiag.live(h.text, h.n); });
+          res.kept.forEach(function (k) { AnderStelleDiag.kept(k.text, k.finalText, k.n); });
+          res.finals.forEach(function (f) { AnderStelleDiag.final(f.result, f.n); });
+          if (res.added > 0) { addHits(res.added); AnderStelleTracker.logHits(res.added, "auto", SOURCE, sessionId); }
+          renderLive(res.interimText.trim());
           renderCount();
         };
 
@@ -1030,6 +1020,7 @@
             case "service-not-allowed":
               setStatus("error", "Fehler: Mikrofonzugriff verweigert"); userStopped = true; listening = false; updateToggle(); break;
             case "aborted": break;
+            case "phrases-not-supported": AnderStelleBoost.phrasesFailed(r); break;   // onend startet ohne Boost neu
             default: setStatus("error", "Fehler: " + event.error);
           }
         };
@@ -1037,7 +1028,7 @@
         r.onend = function () {
           AnderStelleDiag.recEnd(userStopped);
           running = false;
-          lastFinalIndex = -1; utteranceCounted = 0; renderLive(""); renderCount();
+          counter.reset(); renderLive(""); renderCount();
           if (!userStopped) scheduleRestart();
           else { listening = false; setStatus("paused", "pausiert"); updateToggle(); }
         };
@@ -1050,7 +1041,7 @@
         restartTimer = setTimeout(function () {
           restartTimer = null;
           if (userStopped || !listening || running) return;
-          try { recognition.start(); lastActivityAt = Date.now(); setStatus("listening", "hört zu …"); }
+          try { AnderStelleBoost.start(recognition); lastActivityAt = Date.now(); setStatus("listening", "hört zu …"); }
           catch (e) { AnderStelleDiag.note("Neustart klappte nicht sofort – neuer Versuch"); scheduleRestart(400); }
         }, delay || 120);
       }
@@ -1060,12 +1051,16 @@
         if (!recognition) recognition = createRecognition();
         ensureAudio();
         userStopped = false; listening = true;
-        lastFinalIndex = -1; utteranceCounted = 0; lastActivityAt = Date.now();
+        counter.reset(); lastActivityAt = Date.now();
         renderLive("");
         if (!startTime) startTime = Date.now();
         sessionId = AnderStelleTracker.startSession(SOURCE);
-        try { recognition.start(); setStatus("listening", "hört zu …"); }
-        catch (e) { setStatus("listening", "hört zu …"); }
+        setStatus("listening", "hört zu …");
+        // Verstärker-Tonspur (falls eingeschaltet) vorbereiten, dann starten
+        AnderStelleBoost.prepare().then(function () {
+          if (!listening || running) return;
+          try { AnderStelleBoost.start(recognition); } catch (e) { scheduleRestart(300); }
+        });
         updateToggle();
       }
 
@@ -1083,7 +1078,7 @@
       toggleBtn.addEventListener("click", function () { if (listening) stop(); else start(); });
 
       resetBtn.addEventListener("click", function () {
-        count = 0; utteranceCounted = 0; prevCount = 0;
+        count = 0; prevCount = 0;
         localStorage.setItem(STORAGE_KEY, "0");
         hitTimestamps = []; startTime = listening ? Date.now() : null;
         renderCount(); renderLive(""); updateRate();

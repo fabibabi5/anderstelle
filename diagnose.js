@@ -21,7 +21,7 @@
   var matchRe = null;
   var entries = [];          // { t, kind, text, cls }
   var stats = {
-    since: null, starts: 0, ends: 0, finals: 0, hits: 0, near: 0,
+    since: null, starts: 0, ends: 0, finals: 0, hits: 0, near: 0, live: 0, saved: 0,
     gapMs: 0, maxGapMs: 0, errors: {}, sessionMs: []
   };
   var lastEndAt = null, lastStartAt = null;
@@ -103,6 +103,19 @@
 
     note: function (text) { add("note", esc(text), "sys"); },
 
+    // Treffer schon im Live-Zwischenstand erkannt (zählt sofort)
+    live: function (text, n) {
+      stats.live += n;
+      add("live", "⚡ Live erkannt (+" + n + "): " + highlight(text), "live", esc("[LIVE +" + n + "] " + text));
+    },
+    // Live gehört, aber im Endergebnis von Google gestrichen -> bleibt gezählt
+    kept: function (text, finalText, n) {
+      stats.saved += n;
+      add("kept", "🛟 Gerettet: live gehört, im Endergebnis gestrichen – bleibt gezählt<br><span class=\"alt\">live: </span>" +
+          highlight(text) + "<br><span class=\"alt\">Ende: </span>" + esc(finalText || "(leer)"), "kept",
+          esc("[GERETTET +" + n + "] live: " + text + "\n    Ende: " + (finalText || "(leer)")));
+    },
+
     // SpeechRecognitionResult (final) übergeben
     final: function (result, countedN) {
       stats.finals++;
@@ -133,7 +146,7 @@
       "#diag-btn{position:fixed;left:12px;bottom:12px;z-index:90;font:600 13px/1 -apple-system,system-ui,sans-serif;",
       "padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(2,27,46,.85);color:#eafcff;cursor:pointer;box-shadow:none}",
       "#diag-btn:hover{filter:brightness(1.2)}",
-      "#diag{position:fixed;left:12px;bottom:56px;z-index:90;width:min(560px,calc(100vw - 24px));height:min(70vh,640px);display:none;flex-direction:column;",
+      "#diag{position:fixed;left:12px;bottom:56px;z-index:90;width:min(560px,calc(100vw - 24px));height:min(84vh,760px);display:none;flex-direction:column;",
       "background:rgba(2,20,34,.96);color:#eafcff;border:1px solid rgba(255,255,255,.18);border-radius:14px;",
       "font:13px/1.45 -apple-system,system-ui,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden}",
       "#diag.on{display:flex}",
@@ -144,7 +157,7 @@
       "#diag .meter{position:relative;height:10px;border-radius:5px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:4px}",
       "#diag .meter i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#51cf66,#ffd166 70%,#ff6b6b);width:0}",
       "#diag .meter s{position:absolute;top:0;bottom:0;width:2px;background:#fff;left:0}",
-      "#diag .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.1)}",
+      "#diag .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.1)}",
       "#diag .stats div{background:rgba(255,255,255,.06);border-radius:8px;padding:5px 7px}",
       "#diag .stats b{display:block;font-size:15px;color:#5ff0d8}",
       "#diag .stats span{font-size:10.5px;color:#9fd3e0;text-transform:uppercase;letter-spacing:.5px}",
@@ -157,6 +170,11 @@
       "#diag li.err{background:rgba(255,107,107,.15);color:#ff9b9b}",
       "#diag li.hit{background:rgba(81,207,102,.15)}",
       "#diag li.near{background:rgba(255,209,102,.16)}",
+      "#diag li.live{background:rgba(95,240,216,.10)}",
+      "#diag li.kept{background:rgba(199,125,255,.18)}",
+      "#diag .boost{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.1);font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}",
+      "#diag .boost button.on{background:#5ff0d8;color:#022}",
+      "#diag .boost small{flex-basis:100%;color:#9fd3e0}",
       "#diag li .alt{color:#9fd3e0;font-size:11.5px}",
       "#diag li small{color:#9fd3e0}",
       "#diag mark{background:#51cf66;color:#032;border-radius:4px;padding:0 3px;font-weight:700}",
@@ -179,6 +197,9 @@
       '<div class="level">Mikrofon-Pegel <span class="lv-text">(startet beim Öffnen …)</span>' +
       '<div class="meter"><i></i><s></s></div></div>' +
       '<div class="stats"></div>' +
+      '<div class="boost">🎚️ Verstärker (experimentell): ' +
+      '<button data-b="0">Aus</button><button data-b="2">2×</button><button data-b="4">4×</button><button data-b="8">8×</button>' +
+      '<small class="b-status"></small></div>' +
       '<div class="tip">Mac-Tipp: Während Chrome das Mikro nutzt, im Kontrollzentrum „Mikrofonmodus“ auf ' +
       '<b>Standard</b> oder <b>Breites Spektrum</b> stellen – „Sprachisolierung“ filtert entfernte Sprecher weg. ' +
       'Das Log wird nicht gespeichert.</div>' +
@@ -195,10 +216,21 @@
     panel.addEventListener("click", function (e) {
       var a = e.target.getAttribute && e.target.getAttribute("data-a");
       if (a === "close") setOpen(false);
-      else if (a === "clear") { entries = []; listEl.innerHTML = ""; }
+      else if (a === "clear") {
+        // Liste UND Zähler leeren, sonst passen Statistik und Log im Export nicht zusammen
+        entries = []; listEl.innerHTML = "";
+        ["finals", "hits", "near", "live", "saved"].forEach(function (k) { stats[k] = 0; });
+        renderStats();
+      }
       else if (a === "export") exportLog();
+      var b = e.target.getAttribute && e.target.getAttribute("data-b");
+      if (b !== null && b !== undefined && global.AnderStelleBoost) {
+        global.AnderStelleBoost.setLevel(parseFloat(b)).then(renderBoost, renderBoost);
+        renderBoost();
+      }
     });
-    setInterval(function () { if (open) renderStats(); }, 1000);
+    renderBoost();
+    setInterval(function () { if (open) { renderStats(); renderBoost(); } }, 1000);
   }
 
   function setOpen(v) {
@@ -208,6 +240,7 @@
       listEl.innerHTML = "";
       entries.forEach(appendRow);
       renderStats();
+      renderBoost();
       startMeter();
     } else {
       stopMeter();
@@ -226,6 +259,21 @@
 
   function currentGap() { return lastEndAt ? Date.now() - lastEndAt : 0; }
 
+  function boostStatus() {
+    var B = global.AnderStelleBoost;
+    return B ? B.status() : { amp: "–", phrases: "–" };
+  }
+  function renderBoost() {
+    var B = global.AnderStelleBoost, row = panel.querySelector(".boost");
+    if (!B) { row.style.display = "none"; return; }
+    Array.prototype.forEach.call(row.querySelectorAll("button"), function (x) {
+      x.classList.toggle("on", parseFloat(x.getAttribute("data-b")) === (B.level || 0));
+    });
+    var st = boostStatus();
+    row.querySelector(".b-status").textContent = "Verstärker: " + st.amp + " · Phrasen-Boost „an der Stelle“: " + st.phrases +
+      ". Hebt leise Satzenden an; wird beim nächsten Neustart der Erkennung aktiv (oder Stopp → Start).";
+  }
+
   function renderStats() {
     var run = Date.now() - stats.since;
     var gap = stats.gapMs + currentGap();
@@ -235,8 +283,10 @@
       .reduce(function (s, k) { return s + stats.errors[k]; }, 0);
     var cells = [
       [stats.finals, "Sätze erkannt"],
-      [stats.hits, "Treffer"],
+      [stats.hits, "Treffer im Endergebnis"],
       [stats.near, "Beinahe-Treffer"],
+      [stats.live, "davon live erkannt"],
+      [stats.saved, "gerettet (sonst verloren)"],
       [stats.starts ? stats.starts - 1 : 0, "Neustarts"],
       [secs(gap), "Lücken gesamt"],
       [run ? (gap / run * 100).toFixed(1) + " %" : "–", "Zeit ohne Erkennung"],
@@ -301,6 +351,7 @@
         return d.querySelector("span").textContent + " = " + d.querySelector("b").textContent;
       }).join(" | "),
       "Fehler: " + JSON.stringify(stats.errors),
+      "Verstärker: " + boostStatus().amp + " | Phrasen-Boost: " + boostStatus().phrases,
       ""
     ];
     var lines = entries.map(function (e) {
