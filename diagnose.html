@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🔬 Diagnose-Labor – „an der Stelle“</title>
+  <style>
+    :root {
+      --bg: #021b2e; --panel: rgba(255,255,255,0.05); --line: rgba(255,255,255,0.10);
+      --text: #eafcff; --muted: #9fd3e0; --accent: #5ff0d8; --ok: #51cf66; --warn: #ffd166; --err: #ff6b6b;
+      --missed: #3fa7d6; --false: #e0475b; --double: #a974e8; --kept: #c77dff;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body { background: linear-gradient(180deg, #021b2e, #03263b 60%, #043b57); color: var(--text); min-height: 100vh;
+           font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    a { color: var(--accent); }
+    header.top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--line);
+                 position: sticky; top: 0; background: rgba(2,27,46,0.95); backdrop-filter: blur(6px); z-index: 20; }
+    header.top h1 { margin: 0; font-size: 1.25rem; flex: 1; min-width: 220px; }
+    header.top nav { display: flex; gap: 12px; font-size: 0.9rem; flex-wrap: wrap; }
+    main { max-width: 1400px; margin: 0 auto; padding: 18px 20px 60px; display: grid; gap: 16px;
+           grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+    @media (max-width: 980px) { main { grid-template-columns: minmax(0, 1fr); } }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+    .card h2 { margin: 0 0 10px; font-size: 1.02rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .card h2 small { font-weight: 500; color: var(--muted); font-size: 0.82rem; }
+    .full { grid-column: 1 / -1; }
+    button, select, input[type=text], input[type=search] {
+      font: inherit; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.08); color: var(--text); padding: 8px 12px; }
+    button { cursor: pointer; font-weight: 700; }
+    button:hover { filter: brightness(1.15); }
+    button.primary { background: var(--accent); color: #022; border: none; }
+    button.on { background: var(--accent); color: #022; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .muted { color: var(--muted); }
+    .small { font-size: 0.82rem; }
+
+    /* Live */
+    .live-top { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; }
+    #count { font-size: 3.4rem; font-weight: 900; line-height: 1; color: #fff; text-shadow: 0 0 30px rgba(95,240,216,0.6); font-variant-numeric: tabular-nums; min-width: 1.4em; text-align: center; }
+    #status { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+    #status i { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); display: inline-block; }
+    #status.on i { background: var(--ok); box-shadow: 0 0 0 4px rgba(81,207,102,0.25); }
+    #status.err i { background: var(--err); }
+    .flagbtns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+    .flagbtns button { padding: 14px 8px; font-size: 1rem; border: none; color: #fff; line-height: 1.25; }
+    .flagbtns button small { display: block; font-weight: 500; font-size: 0.75rem; opacity: 0.85; }
+    .flagbtns kbd { background: rgba(0,0,0,0.3); border-radius: 4px; padding: 0 5px; font-size: 0.75rem; }
+    button[data-f=missed] { background: var(--missed); } button[data-f=false] { background: var(--false); } button[data-f=double] { background: var(--double); }
+    #note { flex: 1; min-width: 180px; }
+    #transcript { margin-top: 12px; height: 300px; overflow-y: auto; background: rgba(0,0,0,0.22); border-radius: 12px; padding: 12px 14px;
+                  font-size: 1.02rem; line-height: 1.7; }
+    #transcript .seg time { color: var(--muted); font-size: 0.72rem; margin-right: 4px; font-variant-numeric: tabular-nums; }
+    #transcript .interim { color: var(--muted); font-style: italic; }
+    #transcript .badge { display: inline-block; font-size: 0.78rem; font-weight: 800; padding: 1px 8px; border-radius: 999px; margin: 0 4px; vertical-align: middle; }
+    .b-missed { background: var(--missed); } .b-false { background: var(--false); } .b-double { background: var(--double); }
+    .b-live { background: rgba(95,240,216,0.25); color: var(--accent); } .b-kept { background: var(--kept); color: #1b0030; }
+    .b-sys { background: rgba(255,255,255,0.12); color: var(--muted); }
+    mark { background: var(--ok); color: #032; border-radius: 4px; padding: 0 3px; font-weight: 800; }
+
+    /* Pegel */
+    .meter { position: relative; height: 16px; border-radius: 8px; background: rgba(255,255,255,0.1); overflow: hidden; }
+    .meter i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, var(--ok), var(--warn) 70%, var(--err)); }
+    canvas { display: block; width: 100%; border-radius: 10px; background: rgba(0,0,0,0.22); }
+    #liveGraph { height: 150px; margin-top: 10px; }
+    #timeline { height: 190px; cursor: crosshair; }
+    .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
+    .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; background: var(--c); }
+    #tlTip { position: fixed; pointer-events: none; background: #000c; color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 0.78rem; display: none; z-index: 30; }
+
+    /* Sitzungen */
+    #sessions { display: flex; flex-direction: column; gap: 6px; max-height: 330px; overflow-y: auto; }
+    .sess { text-align: left; font-weight: 500; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 9px 12px; }
+    .sess b { font-weight: 800; } .sess.sel { outline: 2px solid var(--accent); background: rgba(95,240,216,0.12); }
+    .sess .tag { font-size: 0.75rem; color: var(--muted); grid-column: 1 / -1; }
+    .sess .live { color: var(--ok); font-weight: 800; }
+
+    /* Auswertung */
+    .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+    .stat { background: rgba(255,255,255,0.06); border-radius: 12px; padding: 10px 12px; }
+    .stat b { display: block; font-size: 1.35rem; color: var(--accent); font-variant-numeric: tabular-nums; }
+    .stat span { font-size: 0.74rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .stat.warn b { color: var(--warn); } .stat.bad b { color: var(--err); }
+    #insights { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    #insights li { padding: 9px 12px; border-radius: 10px; background: rgba(255,255,255,0.06); border-left: 4px solid var(--accent); }
+    #insights li.warn { border-color: var(--warn); } #insights li.bad { border-color: var(--err); } #insights li.ok { border-color: var(--ok); }
+
+    /* Protokoll */
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chips button { padding: 5px 11px; font-size: 0.82rem; border-radius: 999px; }
+    #log { list-style: none; margin: 10px 0 0; padding: 0; max-height: 560px; overflow-y: auto; }
+    #log li { padding: 7px 10px; border-radius: 8px; margin-bottom: 4px; word-break: break-word; scroll-margin: 60px; }
+    #log li time { color: var(--muted); font-size: 0.8rem; margin-right: 8px; font-variant-numeric: tabular-nums; }
+    #log li.sys { color: var(--muted); } #log li.warn { background: rgba(255,209,102,0.1); color: var(--warn); }
+    #log li.err { background: rgba(255,107,107,0.14); color: #ff9b9b; } #log li.hit { background: rgba(81,207,102,0.14); }
+    #log li.near { background: rgba(255,209,102,0.15); } #log li.live { background: rgba(95,240,216,0.08); }
+    #log li.kept { background: rgba(199,125,255,0.16); } #log li.flag { background: rgba(255,255,255,0.12); border-left: 4px solid var(--warn); }
+    #log li.flag-missed { border-color: var(--missed); } #log li.flag-false { border-color: var(--false); } #log li.flag-double { border-color: var(--double); }
+    #log li.jump { outline: 2px solid var(--accent); }
+    #log .alt { color: var(--muted); font-size: 0.82rem; } #log small { color: var(--muted); }
+
+    /* Werkzeuge */
+    #rxIn { width: 100%; }
+    #rxOut { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,0.22); min-height: 2.6em; }
+    #nearList { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    #nearList span { background: rgba(255,209,102,0.15); border-radius: 999px; padding: 3px 10px; font-size: 0.85rem; }
+    .tips li { margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <h1>🔬 Diagnose-Labor <span class="muted small">– warum wird „an der Stelle“ (nicht) erkannt?</span></h1>
+    <nav><a href="wal-party.html">🐳 Wal-Party</a><a href="index.html">Zähler</a><a href="countdown.html">⏳ Countdown</a><a href="auswertung.html">📊 Auswertung</a></nav>
+  </header>
+
+  <main>
+    <!-- ================= Live-Test ================= -->
+    <section class="card">
+      <h2>🎙️ Live-Test <small>eigene Erkennung auf dieser Seite – nicht gleichzeitig mit der Wal-Party laufen lassen</small></h2>
+      <div class="live-top">
+        <button id="toggle" class="primary">▶︎ Start</button>
+        <div>
+          <div id="status"><i></i><span>pausiert</span></div>
+          <div class="muted small" id="sessInfo"></div>
+        </div>
+        <div id="count" title="auf dieser Seite gezählt">0</div>
+      </div>
+      <div class="flagbtns">
+        <button data-f="missed">😶 Verpasst <kbd>V</kbd><small>gesagt, aber nicht gezählt (+1)</small></button>
+        <button data-f="false">🚫 Falsch erkannt <kbd>F</kbd><small>gezählt, aber nicht gesagt (−1)</small></button>
+        <button data-f="double">✌️ Doppelt <kbd>D</kbd><small>einmal gesagt, zweimal gezählt (−1)</small></button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="note" placeholder="Notiz zur nächsten Markierung (optional), z. B. „sehr leise, Satzende“" />
+      </div>
+      <div id="transcript"><span class="muted">Fortlaufendes Transkript erscheint hier – so wie Google es hört (graue Schrift = noch unsicherer Live-Text).</span></div>
+    </section>
+
+    <!-- ================= Mikrofon ================= -->
+    <section class="card">
+      <h2>🎚️ Mikrofon &amp; Verstärker</h2>
+      <div class="row small" style="justify-content:space-between"><span>Pegel jetzt: <b id="dbNow">–</b> · Ø 3 s: <b id="db3">–</b></span><span class="muted" id="micLabel"></span></div>
+      <div class="meter" style="margin-top:6px"><i id="meterBar"></i></div>
+      <canvas id="liveGraph"></canvas>
+      <div class="legend"><span style="--c:#5ff0d8">Pegel (letzte 2 Min.)</span><span style="--c:#51cf66">Treffer</span><span style="--c:#3fa7d6">verpasst</span><span style="--c:#e0475b">falsch</span><span style="--c:#a974e8">doppelt</span></div>
+      <div class="row" style="margin-top:12px">
+        <span>Verstärker:</span>
+        <button data-b="0">Aus</button><button data-b="2">2×</button><button data-b="4">4×</button><button data-b="8">8×</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label class="small">Mikrofon für den Verstärker: <select id="device"><option value="">Standard</option></select></label>
+      </div>
+      <p class="small muted" id="boostStatus" style="margin:8px 0 0"></p>
+      <ul class="tips small muted" style="margin:12px 0 0;padding-left:18px">
+        <li><b>Mac:</b> Während Chrome das Mikro nutzt, im Kontrollzentrum „Mikrofonmodus“ auf <b>Standard</b> oder <b>Breites Spektrum</b> stellen – „Sprachisolierung“ filtert entfernte Sprecher weg.</li>
+        <li>Erkannte Stellen sollten im Pegel klar über dem Grundrauschen liegen. Liegen verpasste Stellen deutlich tiefer: Verstärker höher oder Mikro näher an den Dozenten.</li>
+        <li>Der Verstärker greift nur, wenn Chrome der Erkennung eine eigene Tonspur erlaubt – der Status oben zeigt es nach dem Start an.</li>
+      </ul>
+    </section>
+
+    <!-- ================= Sitzungen ================= -->
+    <section class="card">
+      <h2>🗂️ Sitzungen <small>auch aus Wal-Party und Zähler, lokal im Browser gespeichert</small></h2>
+      <div class="row small" style="margin-bottom:8px">
+        <label><input type="checkbox" id="rec" /> 💾 aufzeichnen</label>
+        <button id="newSess">Neue Sitzung</button>
+        <button id="import">⬆ JSON importieren</button><input type="file" id="importFile" accept=".json,application/json" hidden />
+        <button id="delAll">Alle löschen</button>
+      </div>
+      <div id="sessions"></div>
+    </section>
+
+    <!-- ================= Auswertung ================= -->
+    <section class="card">
+      <h2>📈 Auswertung <small id="viewTitle"></small></h2>
+      <div class="stats" id="stats"></div>
+      <ul id="insights"></ul>
+      <div class="row" style="margin-top:12px">
+        <button id="expTxt">⬇ TXT</button><button id="expJson">⬇ JSON</button><button id="delOne">🗑 Sitzung löschen</button>
+      </div>
+    </section>
+
+    <section class="card full">
+      <h2>🕒 Zeitleiste <small>Pegel über die ganze Sitzung mit allen Ereignissen – klicken springt ins Protokoll</small></h2>
+      <canvas id="timeline"></canvas>
+      <div class="legend">
+        <span style="--c:#5ff0d8">Ø Pegel</span><span style="--c:rgba(95,240,216,.35)">Spitze</span><span style="--c:#51cf66">Treffer</span><span style="--c:#c77dff">gerettet</span>
+        <span style="--c:#3fa7d6">verpasst</span><span style="--c:#e0475b">falsch</span><span style="--c:#a974e8">doppelt</span><span style="--c:#ffd166">Beinahe</span><span style="--c:#9fd3e0">Neustart/Fehler</span>
+      </div>
+    </section>
+
+    <!-- ================= Protokoll ================= -->
+    <section class="card full">
+      <h2>📜 Protokoll</h2>
+      <div class="row">
+        <div class="chips" id="chips">
+          <button data-flt="all" class="on">Alle</button><button data-flt="hits">Treffer</button><button data-flt="flags">Markierungen</button>
+          <button data-flt="near">Beinahe</button><button data-flt="text">nur Transkript</button><button data-flt="sys">System/Fehler</button>
+        </div>
+        <input type="search" id="search" placeholder="Suchen …" style="margin-left:auto;min-width:200px" />
+      </div>
+      <ol id="log"></ol>
+    </section>
+
+    <!-- ================= Werkzeuge ================= -->
+    <section class="card">
+      <h2>🧪 Muster-Tester <small>würde dieser Text gezählt?</small></h2>
+      <input type="text" id="rxIn" value="ich weiß nicht ob sie das an der stelle schon gehört haben" />
+      <div id="rxOut"></div>
+      <p class="small muted">Gesucht wird nach „an/in/am der/die/dem Stelle(n)“, auch zusammengeschrieben („anderstelle“). Beinahe-Treffer wie „an dieser Stelle“ zählen nicht.</p>
+    </section>
+    <section class="card">
+      <h2>🤔 Beinahe-Wörter in dieser Sitzung <small>was Google statt „an der Stelle“ verstanden haben könnte</small></h2>
+      <div id="nearList"><span class="muted">–</span></div>
+    </section>
+  </main>
+  <div id="tlTip"></div>
+
+  <script src="erkennung.js"></script>
+  <script src="diagnose.js"></script>
+  <script>
+  (function () {
+    "use strict";
+    var $ = function (id) { return document.getElementById(id); };
+    var D = AnderStelleDiag, B = AnderStelleBoost;
+    var MATCH_RE = AnderStelleCounter.MATCH_RE;
+    var PAGES = { "wal-party.html": "🐳 Wal-Party", "index.html": "🔢 Zähler", "diagnose": "🔬 Diagnose-Labor" };
+    var COL = { missed: "#3fa7d6", "false": "#e0475b", double: "#a974e8", hit: "#51cf66", kept: "#c77dff", near: "#ffd166", sys: "#9fd3e0" };
+    var localCount = 0;
+
+    D.init({ matchRe: MATCH_RE, panel: false, page: "diagnose", keepLevels: true,
+             plus: function () { localCount++; renderCount(); }, minus: function () { localCount = Math.max(0, localCount - 1); renderCount(); } });
+    D.startSampler();
+
+    // ================= eigene Erkennung =================
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var recognition = null, listening = false, running = false, restartTimer = null;
+    function countMatches(t) { MATCH_RE.lastIndex = 0; var m = (t || "").match(MATCH_RE); return m ? m.length : 0; }
+    function bestAlternative(result) {
+      var bestText = result[0].transcript, bestN = countMatches(bestText);
+      for (var a = 1; a < result.length; a++) { var t = result[a].transcript, n = countMatches(t); if (n > bestN) { bestN = n; bestText = t; } }
+      return { text: bestText.trim(), n: bestN };
+    }
+    var counter = AnderStelleCounter.create({ bestAlternative: bestAlternative, countMatches: countMatches });
+
+    function create() {
+      var r = new SR();
+      r.lang = "de-DE"; r.continuous = true; r.interimResults = true; r.maxAlternatives = 5;
+      B.applyPhrases(r);
+      r.onstart = function () { running = true; D.recStart(); setStatus("on", "hört zu …"); };
+      r.onresult = function (event) {
+        var res = counter.process(event);
+        D.interim(res.interimText);
+        res.live.forEach(function (h) { D.live(h.text, h.n); });
+        res.kept.forEach(function (k) { D.kept(k.text, k.finalText, k.n); });
+        res.finals.forEach(function (f) { D.final(f.result, f.n); });
+        if (res.added) { localCount += res.added; D.added(res.added); renderCount(); }
+        renderInterim(res.interimText);
+      };
+      r.onerror = function (e) {
+        D.error(e.error);
+        if (e.error === "phrases-not-supported") B.phrasesFailed(r);
+        else if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") { listening = false; setStatus("err", "Mikrofon-Problem: " + e.error); updateToggle(); }
+      };
+      r.onend = function () {
+        running = false;
+        D.recEnd(!listening);
+        counter.flush().forEach(function (k) { D.kept(k.text, k.finalText, k.n); });
+        renderInterim("");
+        if (listening) scheduleRestart(); else setStatus("", "pausiert");
+      };
+      return r;
+    }
+    function scheduleRestart(ms) {
+      if (restartTimer) return;
+      restartTimer = setTimeout(function () {
+        restartTimer = null;
+        if (!listening || running) return;
+        try { B.start(recognition); } catch (e) { D.note("Neustart klappte nicht sofort – neuer Versuch"); scheduleRestart(400); }
+      }, ms || 120);
+    }
+    function start() {
+      if (!SR) { setStatus("err", "Dieser Browser hat keine Spracherkennung – bitte Chrome nutzen"); return; }
+      if (!recognition) recognition = create();
+      listening = true; counter.reset(); updateToggle(); setStatus("on", "startet …");
+      B.prepare().then(function () { if (!listening || running) return; try { B.start(recognition); } catch (e) { scheduleRestart(300); } });
+    }
+    function stop() {
+      listening = false; updateToggle();
+      if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+      if (recognition) try { recognition.stop(); } catch (e) {}
+    }
+    B.onRestartNeeded = function () { if (listening && running && recognition) try { recognition.stop(); } catch (e) {} };
+    setInterval(function () { if (listening && !running && !restartTimer) scheduleRestart(200); }, 3000);   // Watchdog
+
+    function setStatus(cls, text) { $("status").className = cls; $("status").lastChild.textContent = text; }
+    function updateToggle() { $("toggle").textContent = listening ? "⏸ Stopp" : "▶︎ Start"; }
+    function renderCount() { $("count").textContent = localCount; }
+    $("toggle").addEventListener("click", function () { listening ? stop() : start(); });
+
+    // ================= Markierungen =================
+    function doFlag(kind) { D.flag(kind, $("note").value.trim()); $("note").value = ""; }
+    document.querySelectorAll(".flagbtns button").forEach(function (b) { b.addEventListener("click", function () { doFlag(b.getAttribute("data-f")); }); });
+    document.addEventListener("keydown", function (e) {
+      if (e.metaKey || e.ctrlKey || e.altKey || /input|textarea|select/i.test(e.target.tagName)) return;
+      var k = { v: "missed", f: "false", d: "double" }[(e.key || "").toLowerCase()];
+      if (k) { e.preventDefault(); doFlag(k); }
+    });
+
+    // ================= Transkript (fortlaufend) =================
+    var tr = $("transcript"), interimEl = null, trEmpty = true;
+    function clearPlaceholder() {
+      if (!trEmpty) return;
+      tr.innerHTML = ""; trEmpty = false;
+      interimEl = null;   // war im Platzhalter-Inhalt und ist jetzt weg
+    }
+    function trAppend(html) {
+      clearPlaceholder();
+      var stick = tr.scrollHeight - tr.scrollTop - tr.clientHeight < 40;
+      var s = document.createElement("span"); s.innerHTML = html + " ";
+      if (interimEl) tr.insertBefore(s, interimEl); else tr.appendChild(s);
+      if (stick) tr.scrollTop = tr.scrollHeight;
+    }
+    function renderInterim(text) {
+      if (text) clearPlaceholder();
+      if (!interimEl || interimEl.parentNode !== tr) { interimEl = document.createElement("span"); interimEl.className = "interim"; tr.appendChild(interimEl); }
+      interimEl.innerHTML = text ? D.highlight(text) : "";
+      tr.scrollTop = tr.scrollHeight;
+    }
+    function trEntry(e) {
+      if (e.k === "final" && e.a && e.a[0] && e.a[0][0]) trAppend('<span class="seg"><time>' + D.clock(e.t).slice(0, 5) + "</time>" + D.highlight(e.a[0][0]) + "</span>");
+      else if (e.k === "flag") trAppend('<span class="badge b-' + e.f + '">' + D.FLAGS[e.f].icon + " " + D.FLAGS[e.f].label + "</span>");
+      else if (e.k === "kept") trAppend('<span class="badge b-kept">🛟 gerettet</span>');
+      else if (e.k === "start" && e.g > 2000) trAppend('<span class="badge b-sys">Lücke ' + (e.g / 1000).toFixed(1) + " s</span>");
+      else if (e.k === "error" && e.x !== "no-speech" && e.x !== "aborted") trAppend('<span class="badge b-sys">⚠ ' + D.esc(e.x) + "</span>");
+    }
+
+    // ================= Pegel live =================
+    var liveLv = [];
+    var lg = $("liveGraph");
+    setInterval(function () {
+      var db = D.levelNow(), r = D.recentDb();
+      $("dbNow").textContent = db == null ? "–" : Math.round(db) + " dB";
+      $("db3").textContent = r == null ? "–" : Math.round(r) + " dB";
+      $("meterBar").style.width = (db == null ? 0 : Math.max(0, Math.min(100, (db + 70) / 70 * 100))) + "%";
+      $("micLabel").textContent = D.micLabel() || "";
+      if (db != null) liveLv.push([Date.now(), db]);
+      while (liveLv.length && Date.now() - liveLv[0][0] > 120000) liveLv.shift();
+      drawLive();
+    }, 100);
+    function sizeCanvas(c) {
+      var r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+      if (c.width !== Math.round(r.width * dpr) || c.height !== Math.round(r.height * dpr)) { c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); }
+      var ctx = c.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx: ctx, w: r.width, h: r.height };
+    }
+    var DB_MIN = -85, DB_MAX = -5;
+    function yOf(db, h) { return h - 6 - (Math.max(DB_MIN, Math.min(DB_MAX, db)) - DB_MIN) / (DB_MAX - DB_MIN) * (h - 12); }
+    function gridLines(ctx, w, h) {
+      ctx.strokeStyle = "rgba(255,255,255,0.07)"; ctx.fillStyle = "rgba(159,211,224,0.6)"; ctx.font = "10px sans-serif"; ctx.lineWidth = 1;
+      [-80, -60, -40, -20].forEach(function (d) { var y = yOf(d, h); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); ctx.fillText(d + " dB", 4, y - 2); });
+    }
+    function eventMarkers(s, x0, x1, xOf, ctx, h) {
+      s.e.forEach(function (e) {
+        if (e.t < x0 || e.t > x1) return;
+        var x = xOf(e.t), c = null, big = false;
+        if (e.k === "flag") { c = COL[e.f]; big = true; }
+        else if (e.k === "live" || (e.k === "final" && e.n)) c = COL.hit;
+        else if (e.k === "kept") c = COL.kept;
+        else if (e.k === "final" && e.near) c = COL.near;
+        else if ((e.k === "start" && e.g) || (e.k === "error" && !/no-speech|aborted|phrases/.test(e.x))) c = COL.sys;
+        if (!c) return;
+        ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = big ? 3 : 1.5;
+        ctx.beginPath(); ctx.moveTo(x, big ? 0 : 6); ctx.lineTo(x, h); ctx.globalAlpha = big ? 0.9 : 0.45; ctx.stroke(); ctx.globalAlpha = 1;
+        if (big) { ctx.beginPath(); ctx.moveTo(x - 7, 0); ctx.lineTo(x + 7, 0); ctx.lineTo(x, 11); ctx.fill(); }
+        else { ctx.beginPath(); ctx.arc(x, 6, 3.5, 0, 6.29); ctx.fill(); }
+      });
+    }
+    function drawLive() {
+      var g = sizeCanvas(lg), ctx = g.ctx, w = g.w, h = g.h, now = Date.now(), x0 = now - 120000;
+      ctx.clearRect(0, 0, w, h); gridLines(ctx, w, h);
+      var xOf = function (t) { return (t - x0) / 120000 * w; };
+      eventMarkers(D.session(), x0, now, xOf, ctx, h);
+      ctx.strokeStyle = "#5ff0d8"; ctx.lineWidth = 1.5; ctx.beginPath();
+      liveLv.forEach(function (l, i) { var x = xOf(l[0]), y = yOf(l[1], h); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+      ctx.stroke();
+    }
+
+    // ================= Verstärker & Gerät =================
+    function renderBoost() {
+      document.querySelectorAll("[data-b]").forEach(function (b) { b.classList.toggle("on", parseFloat(b.getAttribute("data-b")) === (B.level || 0)); });
+      var st = B.status();
+      $("boostStatus").textContent = "Verstärker: " + st.amp + " · Phrasen-Boost: " + st.phrases + ". Umschalten startet die Erkennung kurz neu.";
+    }
+    document.querySelectorAll("[data-b]").forEach(function (b) {
+      b.addEventListener("click", function () { B.setLevel(parseFloat(b.getAttribute("data-b"))).then(renderBoost, renderBoost); renderBoost(); });
+    });
+    function loadDevices() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+      navigator.mediaDevices.enumerateDevices().then(function (list) {
+        var sel = $("device"), cur = B.deviceId;
+        sel.innerHTML = '<option value="">Standard</option>';
+        list.filter(function (d) { return d.kind === "audioinput" && d.deviceId !== "default"; }).forEach(function (d, i) {
+          var o = document.createElement("option"); o.value = d.deviceId; o.textContent = d.label || "Mikrofon " + (i + 1);
+          if (d.deviceId === cur) o.selected = true; sel.appendChild(o);
+        });
+      });
+    }
+    $("device").addEventListener("change", function () { B.setDevice(this.value).then(renderBoost); });
+    setTimeout(loadDevices, 1200);   // Namen gibt es erst nach der Mikrofon-Freigabe
+    if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener("devicechange", loadDevices);
+
+    // ================= Sitzungen =================
+    var viewId = null;   // null = aktuelle Sitzung dieser Seite
+    $("rec").checked = D.isRecording();
+    $("rec").addEventListener("change", function () { D.setRecording(this.checked); });
+    $("newSess").addEventListener("click", function () { D.newSession(); counter.reset(); localCount = 0; renderCount(); tr.innerHTML = ""; interimEl = null; trEmpty = true; viewId = null; renderAll(); });
+    $("import").addEventListener("click", function () { $("importFile").click(); });
+    $("importFile").addEventListener("change", function () {
+      var f = this.files[0]; if (!f) return;
+      f.text().then(function (txt) { var s = D.importSession(JSON.parse(txt)); viewId = s.id; renderAll(); })
+       .catch(function (e) { alert("Import fehlgeschlagen: " + e.message); });
+      this.value = "";
+    });
+    $("delAll").addEventListener("click", function () { if (confirm("Alle gespeicherten Diagnose-Sitzungen löschen?")) { D.deleteAll(); viewId = null; renderAll(); } });
+    $("delOne").addEventListener("click", function () {
+      var s = viewed(); if (!s || s === D.session()) { alert("Die laufende Sitzung kann man nicht löschen – „Neue Sitzung“ beginnt eine frische."); return; }
+      if (confirm("Diese Sitzung löschen?")) { D.deleteSession(s.id); viewId = null; renderAll(); }
+    });
+    $("expTxt").addEventListener("click", function () { D.exportTxt(viewed()); });
+    $("expJson").addEventListener("click", function () { D.exportJson(viewed()); });
+
+    function viewed() {
+      if (!viewId) return D.session();
+      return D.sessions().filter(function (s) { return s.id === viewId; })[0] || D.session();
+    }
+    function fmtDur(ms) { var m = Math.round(ms / 60000); return m < 60 ? m + " Min." : Math.floor(m / 60) + " Std. " + (m % 60) + " Min."; }
+    function renderSessions() {
+      var box = $("sessions"), cur = viewed();
+      box.innerHTML = "";
+      D.sessions().forEach(function (s) {
+        var st = D.computeStats(s), mine = s === D.session(), activeElsewhere = !mine && !s.end && Date.now() - s.upd < 15000;
+        var b = document.createElement("button");
+        b.className = "sess" + (s.id === cur.id ? " sel" : "");
+        b.innerHTML = "<b>" + (PAGES[s.page] || s.page) + "</b><span>" + new Date(s.start).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + "</span>" +
+          '<span class="tag">' + fmtDur(st.runMs) + " · " + st.counted + " gezählt · " + (st.missed + st["false"] + st.double) + " markiert" +
+          (mine ? ' · <span class="live">● diese Seite</span>' : activeElsewhere ? ' · <span class="live">● läuft in anderem Tab</span>' : "") + (s.imported ? " · importiert" : "") + "</span>";
+        b.addEventListener("click", function () { viewId = mine ? null : s.id; renderAll(); });
+        box.appendChild(b);
+      });
+      if (!box.children.length) box.innerHTML = '<span class="muted small">Noch keine Sitzungen. Starte oben den Live-Test oder öffne das Diagnose-Panel in der Wal-Party.</span>';
+    }
+
+    // ================= Auswertung & Befunde =================
+    function pct(v) { return v == null ? "–" : Math.round(v * 100) + " %"; }
+    function renderStats(s) {
+      var st = D.computeStats(s);
+      var cells = [
+        [st.counted, "gezählt (automatisch)"], [st.live, "davon live erkannt"], [st.kept, "gerettet"],
+        [st.missed, "markiert: verpasst", st.missed ? "warn" : ""], [st["false"], "markiert: falsch", st["false"] ? "warn" : ""],
+        [st.double, "markiert: doppelt", st.double ? "warn" : ""],
+        [pct(st.recall), "Trefferquote (geschätzt)", st.recall != null && st.recall < 0.8 ? "bad" : ""],
+        [pct(st.precision), "Genauigkeit (geschätzt)", st.precision != null && st.precision < 0.9 ? "warn" : ""],
+        [st.finals, "Abschnitte von Google"], [st.near, "Beinahe-Treffer"],
+        [Math.max(0, st.starts - 1), "Neustarts"], [st.gapPct.toFixed(1).replace(".", ",") + " %", "Zeit ohne Erkennung", st.gapPct > 3 ? "warn" : ""],
+        [st.errCount, "Fehler", st.errCount ? "warn" : ""], [st.silence, "„keine Sprache“-Meldungen"],
+        [st.avgDb == null ? "–" : Math.round(st.avgDb) + " dB", "Ø Pegel"], [fmtDur(st.runMs), "Dauer"]
+      ];
+      $("stats").innerHTML = cells.map(function (c) { return '<div class="stat ' + (c[2] || "") + '"><b>' + c[0] + "</b><span>" + c[1] + "</span></div>"; }).join("");
+      $("viewTitle").textContent = (PAGES[s.page] || s.page) + " · " + new Date(s.start).toLocaleString("de-DE");
+      renderInsights(s, st);
+    }
+    function renderInsights(s, st) {
+      var out = [];
+      function add(cls, html) { out.push('<li class="' + cls + '">' + html + "</li>"); }
+      if (!s.e.length) { add("", "Noch keine Daten in dieser Sitzung."); $("insights").innerHTML = out.join(""); return; }
+      if (st.recall != null) add(st.recall >= 0.9 ? "ok" : st.recall >= 0.7 ? "warn" : "bad",
+        "Geschätzte Trefferquote <b>" + pct(st.recall) + "</b>: von allen „an der Stelle“, die du als gesagt bestätigt bzw. markiert hast, wurden so viele automatisch gezählt.");
+      else add("", "Tipp: Markiere während der Vorlesung mit <b>V / F / D</b>, wenn die Erkennung danebenliegt – dann kann hier eine Trefferquote berechnet werden.");
+      if (st.missed && st.dbAtMissed != null && st.dbAtHits != null) {
+        var diff = st.dbAtHits - st.dbAtMissed;
+        if (diff > 3) add("bad", "Verpasste Stellen waren im Schnitt <b>" + Math.round(diff) + " dB leiser</b> als erkannte (" + Math.round(st.dbAtMissed) + " vs. " + Math.round(st.dbAtHits) +
+          " dB). → Lautstärke ist das Problem: Verstärker höher stellen oder Mikrofon näher an den Dozenten.");
+        else add("warn", "Verpasste Stellen waren <b>nicht leiser</b> als erkannte (" + Math.round(st.dbAtMissed) + " vs. " + Math.round(st.dbAtHits) +
+          " dB). → Eher ein Verständnisproblem von Google (Nuschelei, Hall, Satzende). Schau dir unten den Kontext der Markierungen und die Beinahe-Wörter an.");
+      }
+      var missedNear = s.e.filter(function (e) { return e.k === "flag" && e.f === "missed" && e.c && D.NEAR_RE.test(withoutHits(e.c)); });
+      if (missedNear.length) add("warn", missedNear.length + " verpasste Stelle(n) hatten ein Beinahe-Wort im Kontext (z. B. „" + D.esc((e2(missedNear[0].c) || "").slice(0, 60)) +
+        "“). → Google hat etwas Ähnliches verstanden; schau in „Beinahe-Wörter“, ob sich ein Muster lohnt.");
+      var missedEmpty = s.e.filter(function (e) { return e.k === "flag" && e.f === "missed" && (!e.c || !e.c.trim()); }).length;
+      if (missedEmpty) add("bad", missedEmpty + " verpasste Stelle(n) ohne jedes Transkript davor → Google hat in dem Moment gar nichts gehört (zu leise, Hörlücke oder Neustart).");
+      if (st.kept) add("ok", "Die Rettung hat <b>" + st.kept + "</b> Treffer gesichert, die Google im Endergebnis wieder gestrichen hätte.");
+      var lives = s.e.filter(function (e) { return e.k === "live"; }), close = 0;
+      for (var i = 1; i < lives.length; i++) if (lives[i].t - lives[i - 1].t < 1500) close++;
+      if (st.double || close) add("warn", (st.double ? st.double + "× als doppelt markiert. " : "") + (close ? close + " Live-Zählung(en) folgten in unter 1,5 s aufeinander – mögliche Doppelzählung, im Protokoll prüfen." : ""));
+      if (st["false"]) add("warn", st["false"] + "× als falsch erkannt markiert – der Kontext der Markierung zeigt, was Google stattdessen verstanden hat.");
+      if (st.gapPct > 3) add("warn", "Die Erkennung war <b>" + st.gapPct.toFixed(1).replace(".", ",") + " %</b> der Zeit weg (Neustarts/Lücken). Gesagtes in diesen Momenten geht verloren.");
+      if (st.errors.network) add("bad", st.errors.network + "× Netzwerkfehler – das Audio kam nicht bei Google an. Stabileres WLAN oder Hotspot hilft.");
+      if (st.silence > 5) add("warn", st.silence + "× meldete Chrome „keine Sprache“ – oft ein Zeichen, dass das Mikrofon den Dozenten zu leise hört.");
+      if (st.avgDb != null && st.avgDb < -55) add("warn", "Der durchschnittliche Pegel ist sehr niedrig (" + Math.round(st.avgDb) + " dB). Mikrofonmodus und Eingangslautstärke prüfen.");
+      if (s === D.session()) {
+        var bs = B.status();
+        add(bs.amp.indexOf("aktiv") === 0 ? "ok" : "", "Verstärker: " + bs.amp + " · Phrasen-Boost: " + bs.phrases + ".");
+      }
+      if (st.errors["phrases-not-supported"]) add("", "Phrasen-Boost wird von diesem Chrome (Cloud-Erkennung) nicht unterstützt – das ist normal und schadet nicht.");
+      $("insights").innerHTML = out.join("");
+    }
+    function withoutHits(c) { MATCH_RE.lastIndex = 0; return (c || "").replace(MATCH_RE, " "); }
+    function e2(c) { c = withoutHits(c); var m = c.match(/[^…]*?(st[eä]l|schell|stähl|an dieser|andere[nr]? st|stehle)[^…]{0,30}/i); return m ? m[0].trim() : c; }
+
+    // ================= Zeitleiste =================
+    var tl = $("timeline"), tlMap = null;
+    function drawTimeline(s) {
+      var g = sizeCanvas(tl), ctx = g.ctx, w = g.w, h = g.h;
+      ctx.clearRect(0, 0, w, h);
+      var t0 = s.start, t1 = Math.max(s.end || (s === D.session() ? Date.now() : s.upd), t0 + 60000);
+      var xOf = function (t) { return (t - t0) / (t1 - t0) * w; };
+      tlMap = { t0: t0, t1: t1, w: w };
+      gridLines(ctx, w, h);
+      // Zeitachse
+      ctx.fillStyle = "rgba(159,211,224,0.6)"; ctx.font = "10px sans-serif";
+      var step = (t1 - t0) > 3 * 3600e3 ? 1800e3 : (t1 - t0) > 3600e3 ? 900e3 : (t1 - t0) > 900e3 ? 300e3 : 60e3;
+      for (var t = Math.ceil(t0 / step) * step; t < t1; t += step) ctx.fillText(D.clock(t).slice(0, 5), xOf(t) + 2, h - 2);
+      eventMarkers(s, t0, t1, xOf, ctx, h);
+      if (s.lv.length) {
+        ctx.strokeStyle = "rgba(95,240,216,0.35)"; ctx.lineWidth = 1; ctx.beginPath();
+        s.lv.forEach(function (l, i) { var x = xOf(l[0]), y = yOf(l[2], h); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+        ctx.stroke();
+        ctx.strokeStyle = "#5ff0d8"; ctx.lineWidth = 1.6; ctx.beginPath();
+        s.lv.forEach(function (l, i) { var x = xOf(l[0]), y = yOf(l[1], h); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = "rgba(159,211,224,0.7)"; ctx.font = "12px sans-serif";
+        ctx.fillText("Für diese Sitzung gibt es keinen Pegel-Verlauf.", 12, h / 2);
+      }
+    }
+    function tlTime(ev) { var r = tl.getBoundingClientRect(); return tlMap.t0 + (ev.clientX - r.left) / r.width * (tlMap.t1 - tlMap.t0); }
+    tl.addEventListener("mousemove", function (ev) {
+      if (!tlMap) return;
+      var t = tlTime(ev), s = viewed(), db = null, best = 1e12;
+      s.lv.forEach(function (l) { var d = Math.abs(l[0] - t); if (d < best) { best = d; db = l[1]; } });
+      var tip = $("tlTip"); tip.style.display = "block"; tip.style.left = (ev.clientX + 12) + "px"; tip.style.top = (ev.clientY - 28) + "px";
+      tip.textContent = D.clock(t) + (db != null && best < 5000 ? " · " + Math.round(db) + " dB" : "");
+    });
+    tl.addEventListener("mouseleave", function () { $("tlTip").style.display = "none"; });
+    tl.addEventListener("click", function (ev) {
+      if (!tlMap) return;
+      var t = tlTime(ev), items = $("log").children, bestEl = null, best = 1e12;
+      for (var i = 0; i < items.length; i++) { var d = Math.abs(+items[i].getAttribute("data-t") - t); if (d < best) { best = d; bestEl = items[i]; } }
+      if (bestEl) { bestEl.scrollIntoView({ behavior: "smooth", block: "center" }); bestEl.classList.add("jump"); setTimeout(function () { bestEl.classList.remove("jump"); }, 1600); }
+    });
+
+    // ================= Protokoll =================
+    var filter = "all";
+    $("chips").addEventListener("click", function (e) {
+      var f = e.target.getAttribute && e.target.getAttribute("data-flt"); if (!f) return;
+      filter = f;
+      Array.prototype.forEach.call(this.children, function (b) { b.classList.toggle("on", b === e.target); });
+      renderLog();
+    });
+    $("search").addEventListener("input", function () { renderLog(); });
+    function passes(e) {
+      if (filter === "hits" && !(e.k === "live" || e.k === "kept" || (e.k === "final" && e.n))) return false;
+      if (filter === "flags" && e.k !== "flag") return false;
+      if (filter === "near" && !(e.k === "final" && e.near)) return false;
+      if (filter === "text" && e.k !== "final") return false;
+      if (filter === "sys" && !/start|end|error|note/.test(e.k)) return false;
+      var q = $("search").value.trim().toLowerCase();
+      if (q) { var r = D.renderEntry(e).plain.toLowerCase(); if (r.indexOf(q) < 0) return false; }
+      return true;
+    }
+    function logItem(e) {
+      var r = D.renderEntry(e), li = document.createElement("li");
+      li.className = r.cls; li.setAttribute("data-t", e.t);
+      li.innerHTML = "<time>" + D.clock(e.t) + "</time>" + r.html;
+      return li;
+    }
+    function renderLog() {
+      var s = viewed(), ol = $("log");
+      ol.innerHTML = "";
+      var list = s.e.filter(passes);
+      list.slice(-1500).forEach(function (e) { ol.appendChild(logItem(e)); });
+      if (!list.length) ol.innerHTML = '<li class="sys">Keine Einträge für diesen Filter.</li>';
+      ol.scrollTop = ol.scrollHeight;
+    }
+
+    // ================= Werkzeuge =================
+    function renderRx() {
+      var t = $("rxIn").value, n = D.countMatches(t), near = !n && D.NEAR_RE.test(t);
+      $("rxOut").innerHTML = (n ? "✅ würde <b>" + n + "×</b> gezählt: " : near ? "🤔 nicht gezählt, aber Beinahe-Treffer: " : "❌ nicht gezählt: ") + D.highlight(t);
+    }
+    $("rxIn").addEventListener("input", renderRx);
+    function renderNear(s) {
+      var counts = {};
+      s.e.forEach(function (e) {
+        if (e.k !== "final" || e.n) return;
+        (e.a || []).forEach(function (a) {
+          var m = (a[0] || "").match(/(?:\S+\s+){0,2}\S*(?:st[eä]l|schell|stähl|stehle)\S*/gi);
+          (m || []).forEach(function (x) { x = x.toLowerCase(); counts[x] = (counts[x] || 0) + 1; });
+          var m2 = (a[0] || "").match(/an dieser stelle|andere[nr]? stelle/gi);
+          (m2 || []).forEach(function (x) { x = x.toLowerCase(); counts[x] = (counts[x] || 0) + 1; });
+        });
+      });
+      var keys = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 40);
+      $("nearList").innerHTML = keys.length ? keys.map(function (k) { return "<span>" + D.esc(k) + " ×" + counts[k] + "</span>"; }).join("") :
+        '<span class="muted">Keine Beinahe-Wörter gefunden – gut so.</span>';
+    }
+
+    // ================= Zusammenspiel =================
+    function renderAll() {
+      var s = viewed();
+      renderSessions(); renderStats(s); drawTimeline(s); renderLog(); renderNear(s); renderBoost();
+      var cur = D.session(), st = D.computeStats(cur);
+      $("sessInfo").textContent = "Sitzung seit " + D.clock(cur.start).slice(0, 5) + " · " + (D.isRecording() ? "wird gespeichert" : "wird nicht gespeichert");
+    }
+    D.subscribe(function (entry, sess) {
+      if (entry) trEntry(entry);
+      if (viewed() === sess) {
+        if (entry && passes(entry)) { var ol = $("log"), stick = ol.scrollHeight - ol.scrollTop - ol.clientHeight < 60;
+          if (ol.firstChild && /Keine Einträge/.test(ol.firstChild.textContent)) ol.innerHTML = "";
+          ol.appendChild(logItem(entry)); if (stick) ol.scrollTop = ol.scrollHeight; }
+        renderStats(sess);
+      }
+    });
+    // Zeitleiste/Sitzungsliste regelmäßig auffrischen (auch für Sitzungen, die in einem anderen Tab laufen)
+    setInterval(function () {
+      var s = viewed();
+      if (s !== D.session() && !s.end && Date.now() - s.upd < 15000) { renderStats(s); renderLog(); }
+      drawTimeline(s); renderSessions(); renderBoost(); renderNear(s);
+    }, 3000);
+    window.addEventListener("resize", function () { drawTimeline(viewed()); });
+
+    renderRx(); renderCount(); renderAll();
+  })();
+  </script>
+</body>
+</html>

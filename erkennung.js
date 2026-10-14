@@ -1,12 +1,14 @@
 /*
  * Gemeinsame Erkennungs-Logik für index.html und wal-party.html.
  *
- * 1) AnderStelleCounter – zählt Treffer pro Result-Index und nimmt NIE zurück.
- *    Hintergrund: Leise angehängte Satzenden („… an der Stelle“) tauchen oft nur
- *    im Live-Zwischenstand auf und werden von Google im Endergebnis wieder
- *    gestrichen. Früher wurde der Treffer dann abgezogen – jetzt bleibt er.
- *    Taucht ein gestrichener Treffer kurz danach in einem anderen Satzteil wieder
- *    auf (Chrome verschiebt manchmal Satzgrenzen), wird er nicht doppelt gezählt.
+ * 1) AnderStelleCounter – zählt Treffer im ZUSAMMENHÄNGENDEN Live-Text und nimmt nie zurück.
+ *    - Chrome liefert den Live-Text in mehreren Teilen (sicherer Anfang + unsicherer Rest),
+ *      und Text wandert zwischen diesen Teilen. Deshalb wird über alle noch offenen
+ *      Teile gemeinsam gezählt – nicht pro Teil (das hatte zu Doppelzählungen geführt).
+ *    - Leise angehängte „… an der Stelle“ streicht Google im Endergebnis oft wieder.
+ *      Einmal live gezählte Treffer bleiben trotzdem gezählt. Taucht so ein Treffer
+ *      innerhalb von 8 s wieder auf, wird er nicht doppelt gezählt; danach gilt er als
+ *      „gerettet“.
  *
  * 2) AnderStelleBoost – optionale Verbesserungen, jeweils mit Feature-Erkennung:
  *    - Phrasen-Boost: sagt Chrome, dass „an der Stelle“ wichtig ist
@@ -21,55 +23,97 @@
   "use strict";
 
   // ======================= Zähler =======================
-  var CARRY_MS = 8000;   // so lange darf ein gestrichener Treffer „wieder auftauchen“, ohne doppelt zu zählen
+  var CARRY_MS = 8000;   // so lange gilt ein verschwundener Treffer als „vielleicht kommt er wieder“
+
+  // Teile zusammensetzen; wiederholt der nächste Teil das Ende des vorigen (≥ 2 Wörter), wird die Dopplung entfernt
+  function joinParts(parts) {
+    var words = [];
+    parts.forEach(function (p) {
+      var w = p.split(/\s+/).filter(Boolean), best = 0;
+      for (var k = Math.min(words.length, w.length); k >= 2; k--) {
+        if (words.slice(-k).join(" ").toLowerCase() === w.slice(0, k).join(" ").toLowerCase()) { best = k; break; }
+      }
+      words = words.concat(w.slice(best));
+    });
+    return words.join(" ");
+  }
 
   function Counter(opts) {
     this.best = opts.bestAlternative;   // (result) -> { text, n }
+    this.count = opts.countMatches;     // (text) -> n
     this.reset();
   }
   Counter.prototype.reset = function () {
-    this.counted = {};     // Result-Index -> bereits gezählte Treffer
-    this.hitText = {};     // Result-Index -> Text, in dem der Treffer gehört wurde
-    this.finalized = {};   // Result-Index -> Endergebnis schon verarbeitet
-    this.carry = 0;
-    this.carryUntil = 0;
+    this.finalized = {};    // Result-Index -> Endergebnis schon verarbeitet
+    this.pending = 0;       // gezählte Treffer, die noch nicht in einem Endergebnis stecken
+    this.lastInterimN = 0;
+    this.lastInterimText = "";
+    this.hitText = "";      // Live-Text, in dem zuletzt ein Treffer gezählt wurde
+    this.lastFinalText = "";
+    this.orphanSince = 0;   // seit wann gezählte Treffer aus Chromes Text verschwunden sind
+  };
+  // Verschwundene Treffer, die nicht wiederkamen, als „gerettet“ melden (bei Session-Ende aufrufen)
+  Counter.prototype.flush = function () {
+    var kept = [];
+    var orphan = this.pending - this.lastInterimN;
+    if (orphan > 0) kept.push({ text: this.hitText, finalText: this.lastFinalText, n: orphan });
+    this.reset();
+    return kept;
   };
   // Liefert { added, interimText, live:[{text,n}], kept:[{text,finalText,n}], finals:[{result,text,n}] }
   Counter.prototype.process = function (event) {
     var out = { added: 0, interimText: "", live: [], kept: [], finals: [] };
     var now = Date.now();
-    if (now > this.carryUntil) this.carry = 0;
+
+    // Verschwundene Treffer, die zu lange weg sind: gerettet (bleiben gezählt), Konto bereinigen
+    if (this.orphanSince && now - this.orphanSince > CARRY_MS) {
+      var gone = this.pending - this.lastInterimN;
+      if (gone > 0) out.kept.push({ text: this.hitText, finalText: this.lastFinalText, n: gone });
+      this.pending = this.lastInterimN;
+      this.orphanSince = 0;
+    }
+
+    var finalsN = 0, parts = [];
     for (var i = event.resultIndex; i < event.results.length; i++) {
-      var res = event.results[i], alt = this.best(res), have = this.counted[i] || 0;
-      if (alt.n > have) {
-        var extra = alt.n - have, absorbed = Math.min(this.carry, extra);
-        this.carry -= absorbed;
-        extra -= absorbed;
-        this.counted[i] = alt.n;
-        this.hitText[i] = alt.text;
-        if (extra > 0) {
-          out.added += extra;
-          if (!res.isFinal) out.live.push({ text: alt.text, n: extra });
-        }
-      }
+      var res = event.results[i], alt = this.best(res);
       if (res.isFinal) {
         if (this.finalized[i]) continue;
         this.finalized[i] = true;
-        var c = this.counted[i] || 0;
-        if (alt.n < c) {
-          // Live gehört, im Endergebnis verschwunden -> trotzdem gezählt lassen
-          this.carry += c - alt.n;
-          this.carryUntil = now + CARRY_MS;
-          out.kept.push({ text: this.hitText[i], finalText: alt.text, n: c - alt.n });
-        }
+        finalsN += alt.n;
+        if (alt.text) this.lastFinalText = alt.text;
         out.finals.push({ result: res, text: alt.text, n: alt.n });
-      } else {
-        out.interimText += alt.text + " ";
+      } else if (alt.text) {
+        parts.push(alt.text);
       }
     }
+    var interimText = joinParts(parts), interimN = this.count(interimText);
+    out.interimText = interimText;
+
+    // Alles, was gerade zu sehen ist (neue Endergebnisse + offener Live-Text), gegen das schon Gezählte
+    var observed = finalsN + interimN;
+    if (observed > this.pending) {
+      var extra = observed - this.pending;
+      out.added = extra;
+      this.pending = observed;
+      var liveExtra = Math.min(extra, interimN);
+      if (liveExtra > 0) { out.live.push({ text: interimText, n: liveExtra }); this.hitText = interimText; }
+    }
+    this.pending -= finalsN;   // diese Treffer sind jetzt in Endergebnissen verbucht
+
+    var orphan = this.pending - interimN;   // gezählt, aber gerade nirgends mehr zu sehen
+    if (orphan > 0) { if (!this.orphanSince) this.orphanSince = now; }
+    else this.orphanSince = 0;
+
+    this.lastInterimN = interimN;
+    this.lastInterimText = interimText;
     return out;
   };
-  global.AnderStelleCounter = { create: function (opts) { return new Counter(opts); } };
+  global.AnderStelleCounter = {
+    create: function (opts) { return new Counter(opts); },
+    joinParts: joinParts,
+    // gleiche Suche wie in den Seiten (für diagnose.html)
+    MATCH_RE: /\b(?:an|in|am|ander|anner)\s*(?:der|die|dem)?\s*st[eä]l{1,2}en?\b/gi
+  };
 
   // ======================= Boost =======================
   var LEVEL_KEY = "anderstelle.boost";
@@ -84,14 +128,18 @@
     trackSupport: null,          // null = unbekannt, true/false nach dem ersten Versuch
     phrases: null,               // null = ungetestet, true = gesetzt, false = nicht unterstützt
     _graph: null, _preparing: null,
+    onRestartNeeded: null,       // von der Seite gesetzt: Erkennung kurz neu starten
+    deviceId: (function () { try { return localStorage.getItem("anderstelle.boost.device") || ""; } catch (e) { return ""; } })(),
 
     setLevel: function (v) {
       Boost.level = v;
       try { localStorage.setItem(LEVEL_KEY, String(v)); } catch (e) {}
       if (Boost._graph) Boost._graph.gain.gain.value = v || 1;
-      if (v > 0) return Boost.prepare();
+      // Damit die Änderung sofort greift, startet die Seite die Erkennung kurz neu (onRestartNeeded)
+      var restart = function (x) { if (Boost.onRestartNeeded) Boost.onRestartNeeded(); return x; };
+      if (v > 0) return Boost.prepare().then(restart);
       Boost.release();
-      return Promise.resolve(null);
+      return Promise.resolve(restart(null));
     },
 
     // Phrasen-Boost setzen (falls der Browser ihn kennt)
@@ -114,6 +162,7 @@
     // onerror "phrases-not-supported": abschalten, der normale Neustart übernimmt
     phrasesFailed: function (r) {
       try { r.phrases = []; } catch (e) {}
+      if (Boost.phrases === false) return;   // Chrome meldet das manchmal doppelt
       Boost.phrases = false;
       try { sessionStorage.setItem(PHRASE_OFF_KEY, "1"); } catch (e) {}
       note("Phrasen-Boost wird von diesem Chrome (ohne Offline-Erkennung) nicht unterstützt – abgeschaltet.");
@@ -127,7 +176,8 @@
       if (Boost._preparing) return Boost._preparing;
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return Promise.resolve(null);
       Boost._preparing = navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: true }
+        audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: true,
+                 deviceId: Boost.deviceId ? { exact: Boost.deviceId } : undefined }
       }).then(function (stream) {
         var Ctx = global.AudioContext || global.webkitAudioContext;
         var ctx = new Ctx();
@@ -183,6 +233,14 @@
         }
       }
       r.start(t);
+    },
+
+    // Mikrofon für den Verstärker wählen ("" = Standard)
+    setDevice: function (id) {
+      Boost.deviceId = id || "";
+      try { localStorage.setItem("anderstelle.boost.device", Boost.deviceId); } catch (e) {}
+      Boost.release();
+      return Boost.level > 0 ? Boost.prepare().then(function (t) { if (Boost.onRestartNeeded) Boost.onRestartNeeded(); return t; }) : Promise.resolve(null);
     },
 
     status: function () {

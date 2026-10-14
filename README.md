@@ -31,9 +31,11 @@ Audio wird zur Erkennung an **Google-Server** gesendet. Nutze die App also nur,
 wenn das für deinen Kontext in Ordnung ist.
 
 Der **Zählerstand** wird lokal im Browser (`localStorage`) gespeichert und bleibt
-nach einem Reload erhalten. Die **Transkripte** (erkannte Sätze) werden bewusst
-**nicht** dauerhaft gespeichert – sie leben nur im Arbeitsspeicher und sind nach
-einem Reload weg.
+nach einem Reload erhalten. Die **Transkripte** werden nur für die Diagnose lokal im
+Browser gespeichert (`localStorage`, max. 8 Sitzungen), damit `diagnose.html` sie
+auswerten kann. Das lässt sich im Diagnose-Panel bzw. auf der Diagnose-Seite mit
+„💾 aufzeichnen“ abschalten; dort kann man gespeicherte Sitzungen auch löschen.
+Nichts davon verlässt den Rechner.
 
 ## Tipp: Online-Vorlesungen (Systemaudio mitschneiden)
 
@@ -100,12 +102,36 @@ ein Panel, das zeigt, was die Spracherkennung tatsächlich versteht:
 
 Das Log lebt nur im Arbeitsspeicher und wird nicht gespeichert.
 
+### 🔬 Diagnose-Labor: `diagnose.html`
+
+Große Diagnose-Seite (Link auch im Diagnose-Panel):
+
+- **Live-Test** mit eigener Erkennung und **fortlaufendem Transkript** (statt „Sätzen“ –
+  die Abschnitte von Google sind willkürlich), unsicherer Live-Text in Grau
+- **Markieren**, wenn die Erkennung danebenlag: **😶 Verpasst (V)**, **🚫 Falsch (F)**,
+  **✌️ Doppelt (D)** – mit optionaler Notiz; gespeichert werden dazu das Transkript der
+  letzten 30 s und der Pegel. Die gleichen Knöpfe/Tasten gibt es im Panel der Wal-Party
+  und des Zählers, dort korrigieren sie auch den Zähler (+1/−1).
+- **Mikrofon:** Live-Pegel mit 2-Minuten-Verlauf, Verstärker 2×/4×/8× mit Mikrofon-Auswahl
+- **Sitzungen** aus allen Seiten (lokal gespeichert, max. 8), Import/Export als JSON/TXT
+- **Auswertung:** geschätzte Trefferquote und Genauigkeit (aus den Markierungen), gerettete
+  Treffer, Hörlücken, Fehler, Pegel bei Treffern vs. bei verpassten Stellen – plus
+  **automatische Befunde** („verpasste Stellen waren 8 dB leiser → Verstärker/Mikro“)
+- **Zeitleiste** der ganzen Sitzung: Pegel mit allen Ereignissen, Klick springt ins Protokoll
+- **Protokoll** mit Filtern und Suche, **Muster-Tester**, Liste der **Beinahe-Wörter**
+
+Hinweis: Nicht gleichzeitig mit der Wal-Party erkennen lassen – Chrome erlaubt nur eine
+Erkennung auf einmal. Die Wal-Party-Sitzung lässt sich aber live in der Diagnose-Seite
+mitverfolgen.
+
 ### Erkennung: was live gehört wurde, bleibt gezählt
 
 Leise angehängte „… an der Stelle" erkennt Chrome oft im **Live-Zwischenstand**, streicht
 sie im **Endergebnis** aber wieder. Früher wurde der Treffer dann abgezogen – jetzt bleibt
-er (`erkennung.js`). Taucht ein gestrichener Treffer kurz danach in einem anderen Satzteil
-wieder auf, wird er nicht doppelt gezählt. Im Diagnose-Panel erscheinen solche Fälle als
+er (`erkennung.js`). Gezählt wird über den **zusammenhängenden** Live-Text (Chrome liefert
+ihn in mehreren Teilen, zwischen denen Text wandert – pro Teil zu zählen führte zu
+Doppelzählungen). Taucht ein gestrichener Treffer kurz danach wieder auf, wird er nicht
+doppelt gezählt. Im Diagnose-Panel erscheinen solche Fälle als
 **⚡ Live erkannt** bzw. **🛟 Gerettet**.
 
 Zusätzlich, jeweils mit automatischer Prüfung, ob dein Chrome das kann:
