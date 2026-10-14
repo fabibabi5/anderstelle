@@ -100,6 +100,27 @@
     #log li.jump { outline: 2px solid var(--accent); }
     #log .alt { color: var(--muted); font-size: 0.82rem; } #log small { color: var(--muted); }
 
+    /* Vosk-Test */
+    .vk-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; }
+    @media (max-width: 980px) { .vk-grid { grid-template-columns: minmax(0, 1fr); } }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-weight: 800; font-size: 0.85rem; background: rgba(255,255,255,0.1); }
+    .pill i { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+    .pill.ok i { background: var(--ok); } .pill.wait i { background: var(--warn); } .pill.bad i { background: var(--err); }
+    #vkGrammar { width: 100%; min-height: 84px; font: 13px/1.4 ui-monospace, Menlo, monospace; border-radius: 10px; border: 1px solid var(--line);
+                 background: rgba(255,255,255,0.08); color: var(--text); padding: 8px 10px; }
+    .vk-live { background: rgba(0,0,0,0.22); border-radius: 10px; padding: 8px 12px; min-height: 2.4em; margin-top: 6px; font-size: 0.95rem; }
+    .vk-live b { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.4px; margin-right: 6px; }
+    .vk-counts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 10px; }
+    @media (max-width: 640px) { .vk-counts { grid-template-columns: repeat(2, 1fr); } }
+    table.vk { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.88rem; }
+    table.vk th, table.vk td { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+    table.vk td.y { color: var(--ok); font-weight: 800; } table.vk td.n { color: var(--muted); } table.vk td.m { color: var(--warn); }
+    .vk-scroll { max-height: 260px; overflow-y: auto; }
+    details.howto { margin-top: 10px; background: rgba(0,0,0,0.2); border-radius: 10px; padding: 8px 12px; }
+    details.howto code { background: rgba(255,255,255,0.1); padding: 1px 6px; border-radius: 5px; }
+    #log li.vosk { background: rgba(255,159,67,0.16); } #log li.vosk-low { background: rgba(255,159,67,0.06); color: var(--muted); }
+    .b-vosk { background: #ff9f43; color: #2a1500; }
+
     /* Werkzeuge */
     #rxIn { width: 100%; }
     #rxOut { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,0.22); min-height: 2.6em; }
@@ -159,6 +180,53 @@
       </ul>
     </section>
 
+    <!-- ================= Vosk-Test ================= -->
+    <section class="card full" id="voskCard">
+      <h2>🧪 Vosk-Test <small>zweiter Detektor, läuft offline auf deinem Mac – sucht gezielt nach „an der Stelle“</small></h2>
+      <div class="vk-grid">
+        <div>
+          <div class="row">
+            <span class="pill" id="vkPill"><i></i><span>aus</span></span>
+            <button id="vkToggle">🔌 Vosk starten</button>
+            <label class="small"><input type="checkbox" id="vkWithLive" checked /> mit Live-Test starten/stoppen</label>
+          </div>
+          <div class="small muted" id="vkInfo" style="margin-top:6px"></div>
+          <details class="howto" id="vkHowto">
+            <summary><b>So startest du den Vosk-Server</b></summary>
+            <ol class="small" style="margin:8px 0 0;padding-left:18px">
+              <li>Terminal öffnen, in den Projektordner wechseln (wo diese Seite liegt).</li>
+              <li><code>./vosk/start.sh</code> eingeben – beim ersten Mal wird Vosk installiert und das deutsche Modell (~45 MB) geladen.</li>
+              <li>Sobald „Vosk-Server läuft …“ erscheint, verbindet sich diese Seite automatisch.</li>
+              <li>Genauer, aber 1,9 GB: <code>./vosk/start.sh --model gross</code></li>
+            </ol>
+          </details>
+          <h3 class="small" style="margin:14px 0 4px">Grammatik <span class="muted">(eine Phrase pro Zeile – Vosk kennt nur diese und „[unk]“)</span></h3>
+          <textarea id="vkGrammar">an der stelle
+an dieser stelle
+[unk]</textarea>
+          <div class="small muted">Gezählt werden nur Phrasen wie „an/in/am der/die/dem stelle“. Weitere Zeilen (z. B. „an dieser stelle“) sind Ablenker, die Fehlalarme abfangen.</div>
+          <div class="row small" style="margin-top:8px">
+            <label><input type="checkbox" id="vkFree" checked /> freie Erkennung zusätzlich</label>
+            <label><input type="checkbox" id="vkRaw" /> Rohsignal (ohne Rauschunterdrückung)</label>
+          </div>
+          <div class="row small" style="margin-top:8px">
+            <label>Sicherheits-Schwelle: <b id="vkThrV">55 %</b> <input type="range" id="vkThr" min="20" max="95" step="5" value="55" /></label>
+            <label>Vergleichsfenster: <b id="vkWinV">4 s</b> <input type="range" id="vkWin" min="2" max="10" step="1" value="4" /></label>
+          </div>
+          <div class="row" style="margin-top:8px"><button id="vkApply">Übernehmen</button></div>
+        </div>
+        <div>
+          <div class="vk-live"><b>Schlüsselwort</b><span id="vkKwsLive" class="muted">–</span></div>
+          <div class="vk-live"><b>Frei</b><span id="vkFreeLive" class="muted">–</span></div>
+          <div class="vk-counts" id="vkCounts"></div>
+          <p class="small" id="vkSummary" style="margin:10px 0 0"></p>
+          <div class="vk-scroll">
+            <table class="vk"><thead><tr><th>Zeit</th><th>Chrome</th><th>Vosk</th><th>Vosk frei</th><th>Markiert</th></tr></thead><tbody id="vkTable"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ================= Sitzungen ================= -->
     <section class="card">
       <h2>🗂️ Sitzungen <small>auch aus Wal-Party und Zähler, lokal im Browser gespeichert</small></h2>
@@ -186,7 +254,7 @@
       <canvas id="timeline"></canvas>
       <div class="legend">
         <span style="--c:#5ff0d8">Ø Pegel</span><span style="--c:rgba(95,240,216,.35)">Spitze</span><span style="--c:#51cf66">Treffer</span><span style="--c:#c77dff">gerettet</span>
-        <span style="--c:#3fa7d6">verpasst</span><span style="--c:#e0475b">falsch</span><span style="--c:#a974e8">doppelt</span><span style="--c:#ffd166">Beinahe</span><span style="--c:#9fd3e0">Neustart/Fehler</span>
+        <span style="--c:#3fa7d6">verpasst</span><span style="--c:#e0475b">falsch</span><span style="--c:#a974e8">doppelt</span><span style="--c:#ffd166">Beinahe</span><span style="--c:#ff9f43">Vosk</span><span style="--c:#9fd3e0">Neustart/Fehler</span>
       </div>
     </section>
 
@@ -196,7 +264,7 @@
       <div class="row">
         <div class="chips" id="chips">
           <button data-flt="all" class="on">Alle</button><button data-flt="hits">Treffer</button><button data-flt="flags">Markierungen</button>
-          <button data-flt="near">Beinahe</button><button data-flt="text">nur Transkript</button><button data-flt="sys">System/Fehler</button>
+          <button data-flt="near">Beinahe</button><button data-flt="vosk">Vosk</button><button data-flt="text">nur Transkript</button><button data-flt="sys">System/Fehler</button>
         </div>
         <input type="search" id="search" placeholder="Suchen …" style="margin-left:auto;min-width:200px" />
       </div>
@@ -219,6 +287,7 @@
 
   <script src="erkennung.js"></script>
   <script src="diagnose.js"></script>
+  <script src="vosk-client.js"></script>
   <script>
   (function () {
     "use strict";
@@ -226,7 +295,7 @@
     var D = AnderStelleDiag, B = AnderStelleBoost;
     var MATCH_RE = AnderStelleCounter.MATCH_RE;
     var PAGES = { "wal-party.html": "🐳 Wal-Party", "index.html": "🔢 Zähler", "diagnose": "🔬 Diagnose-Labor" };
-    var COL = { missed: "#3fa7d6", "false": "#e0475b", double: "#a974e8", hit: "#51cf66", kept: "#c77dff", near: "#ffd166", sys: "#9fd3e0" };
+    var COL = { missed: "#3fa7d6", "false": "#e0475b", double: "#a974e8", hit: "#51cf66", kept: "#c77dff", near: "#ffd166", sys: "#9fd3e0", vosk: "#ff9f43" };
     var localCount = 0;
 
     D.init({ matchRe: MATCH_RE, panel: false, page: "diagnose", keepLevels: true,
@@ -302,10 +371,12 @@
       if (!SR) { setStatus("err", "Dieser Browser hat keine Spracherkennung – bitte Chrome nutzen"); return; }
       if (!recognition) recognition = create();
       listening = true; counter.reset(); updateToggle(); setStatus("on", "startet …");
+      if ($("vkWithLive").checked) voskStart();
       B.prepare().then(function () { if (!listening || running) return; try { B.start(recognition); } catch (e) { scheduleRestart(300); } });
     }
     function stop() {
       listening = false; updateToggle();
+      if ($("vkWithLive").checked) voskStop();
       if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
       if (recognition) try { recognition.stop(); } catch (e) {}
     }
@@ -350,6 +421,7 @@
       if (e.k === "final" && e.a && e.a[0] && e.a[0][0]) trAppend('<span class="seg"><time>' + D.clock(e.t).slice(0, 5) + "</time>" + D.highlight(e.a[0][0]) + "</span>");
       else if (e.k === "flag") trAppend('<span class="badge b-' + e.f + '">' + D.FLAGS[e.f].icon + " " + D.FLAGS[e.f].label + "</span>");
       else if (e.k === "kept") trAppend('<span class="badge b-kept">🛟 gerettet</span>');
+      else if (e.k === "vosk" && e.n && e.r === "kws" && (e.c == null || e.c >= e.th)) trAppend('<span class="badge b-vosk">🎯 Vosk ' + Math.round((e.c || 0) * 100) + " %</span>");
       else if (e.k === "start" && e.g > 2000) trAppend('<span class="badge b-sys">Lücke ' + (e.g / 1000).toFixed(1) + " s</span>");
       else if (e.k === "error" && e.x !== "no-speech" && e.x !== "aborted") trAppend('<span class="badge b-sys">⚠ ' + D.esc(e.x) + "</span>");
     }
@@ -387,6 +459,7 @@
         else if (e.k === "live" || (e.k === "final" && e.n)) c = COL.hit;
         else if (e.k === "kept") c = COL.kept;
         else if (e.k === "final" && e.near) c = COL.near;
+        else if (e.k === "vosk" && e.n && (e.c == null || e.th == null || e.c >= e.th)) c = COL.vosk;
         else if ((e.k === "start" && e.g) || (e.k === "error" && !/no-speech|aborted|phrases/.test(e.x))) c = COL.sys;
         if (!c) return;
         ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = big ? 3 : 1.5;
@@ -582,6 +655,7 @@
       if (filter === "hits" && !(e.k === "live" || e.k === "kept" || (e.k === "final" && e.n))) return false;
       if (filter === "flags" && e.k !== "flag") return false;
       if (filter === "near" && !(e.k === "final" && e.near)) return false;
+      if (filter === "vosk" && e.k !== "vosk") return false;
       if (filter === "text" && e.k !== "final") return false;
       if (filter === "sys" && !/start|end|error|note/.test(e.k)) return false;
       var q = $("search").value.trim().toLowerCase();
@@ -629,6 +703,7 @@
     function renderAll() {
       var s = viewed();
       renderSessions(); renderStats(s); drawTimeline(s); renderLog(); renderNear(s); renderBoost();
+      if (typeof renderVosk === "function") renderVosk();
       var cur = D.session(), st = D.computeStats(cur);
       $("sessInfo").textContent = "Sitzung seit " + D.clock(cur.start).slice(0, 5) + " · " + (D.isRecording() ? "wird gespeichert" : "wird nicht gespeichert");
     }
@@ -649,7 +724,109 @@
     }, 3000);
     window.addEventListener("resize", function () { drawTimeline(viewed()); });
 
-    renderRx(); renderCount(); renderAll();
+    // ================= Vosk-Test =================
+    var vosk = null, vkThr = 0.55, vkWin = 4000;
+    try { var saved = JSON.parse(localStorage.getItem("anderstelle.vosk.cfg") || "null");
+      if (saved) { $("vkGrammar").value = saved.grammar.join("\n"); $("vkFree").checked = saved.free; $("vkRaw").checked = saved.raw;
+                   $("vkThr").value = Math.round(saved.thr * 100); $("vkWin").value = saved.win / 1000; } } catch (e) {}
+    function vkGrammar() { return $("vkGrammar").value.split("\n").map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean); }
+    function vkReadSliders() {
+      vkThr = $("vkThr").value / 100; vkWin = $("vkWin").value * 1000;
+      $("vkThrV").textContent = $("vkThr").value + " %"; $("vkWinV").textContent = $("vkWin").value + " s";
+    }
+    $("vkThr").addEventListener("input", function () { vkReadSliders(); renderVosk(); });
+    $("vkWin").addEventListener("input", function () { vkReadSliders(); renderVosk(); });
+    vkReadSliders();
+    function vkSave() { try { localStorage.setItem("anderstelle.vosk.cfg", JSON.stringify({ grammar: vkGrammar(), free: $("vkFree").checked, raw: $("vkRaw").checked, thr: vkThr, win: vkWin })); } catch (e) {} }
+
+    function vkStatus(state, info) {
+      var p = $("vkPill"), cls = { verbunden: "ok", verbinde: "wait", getrennt: "bad", fehler: "bad" }[state] || "";
+      p.className = "pill " + cls; p.lastChild.textContent = state;
+      $("vkInfo").textContent = state === "verbunden" ? "Modell: " + info : info;
+      $("vkToggle").textContent = vosk && vosk.running ? "⏹ Vosk stoppen" : "🔌 Vosk starten";
+      if (state === "getrennt") $("vkHowto").open = true;
+      if (state === "verbunden") D.note("Vosk verbunden (" + info + ")");
+    }
+    // Treffer in einem Vosk-Ergebnis finden: „an/in/am der/die/dem stelle(n)“, Sicherheit = schwächstes Wort
+    var PHRASE = /^(an|in|am) (der|die|dem) stellen?$/;
+    function kwsHits(words) {
+      var hits = [];
+      for (var i = 0; i + 2 < words.length; i++) {
+        var w = words.slice(i, i + 3), txt = w.map(function (x) { return x.word; }).join(" ");
+        if (PHRASE.test(txt)) { hits.push(Math.min.apply(null, w.map(function (x) { return x.conf == null ? 1 : x.conf; }))); i += 2; }
+      }
+      return hits;
+    }
+    function onVosk(msg) {
+      if (msg.type === "error") { D.note("Vosk-Fehler: " + msg.message); $("vkInfo").textContent = "Fehler: " + msg.message; return; }
+      if (msg.type === "partial") {
+        var el = msg.rec === "kws" ? $("vkKwsLive") : $("vkFreeLive");
+        var t = (msg.text || "").replace(/\[unk\]/g, "…").replace(/(…\s*)+/g, "… ").trim();
+        el.innerHTML = t ? D.highlight(t) : "–"; el.className = t ? "" : "muted";
+        return;
+      }
+      if (msg.type !== "final") return;
+      var clean = (msg.text || "").replace(/\[unk\]/g, " ").replace(/\s+/g, " ").trim();
+      if (msg.rec === "kws") {
+        var hits = kwsHits(msg.words || []);
+        $("vkKwsLive").innerHTML = clean ? D.highlight(clean) : "–";
+        if (hits.length) D.vosk("kws", clean, Math.min.apply(null, hits), hits.length, vkThr);
+        else if (clean) D.vosk("kws", clean, null, 0, vkThr);       // z. B. „an dieser stelle“ (Ablenker)
+      } else {
+        $("vkFreeLive").innerHTML = clean ? D.highlight(clean) : "–";
+        var n = D.countMatches(clean);
+        if (n || D.NEAR_RE.test(clean)) D.vosk("free", clean, null, n, null);
+      }
+    }
+    function voskStart() {
+      // anderer Port? diagnose.html?vosk=ws://127.0.0.1:2701
+      var url = new URLSearchParams(location.search).get("vosk") || undefined;
+      if (!vosk) vosk = AnderStelleVosk.create({ url: url, grammar: vkGrammar(), free: $("vkFree").checked, raw: $("vkRaw").checked, onStatus: vkStatus, onMessage: onVosk });
+      vosk.start(); vkStatus(vosk.state, "");
+    }
+    function voskStop() { if (vosk) vosk.stop(); vkStatus("aus", ""); }
+    $("vkToggle").addEventListener("click", function () { vosk && vosk.running ? voskStop() : voskStart(); });
+    $("vkApply").addEventListener("click", function () {
+      vkReadSliders(); vkSave();
+      if (vosk) { vosk.configure({ grammar: vkGrammar(), free: $("vkFree").checked }); if (vosk.raw !== $("vkRaw").checked) vosk.setRaw($("vkRaw").checked); }
+      D.note("Vosk-Einstellungen: Grammatik [" + vkGrammar().join(" | ") + "], frei " + ($("vkFree").checked ? "an" : "aus") + ", Schwelle " + Math.round(vkThr * 100) + " %");
+      renderVosk();
+    });
+
+    // Vergleichs-Anzeige (für die angezeigte Sitzung)
+    function renderVosk() {
+      var s = viewed(), groups = D.compare(s, vkWin).filter(function (g) { return g.chrome || g.kws || g.kwsLow || g.free || g.flag; });
+      // Schwelle gilt rückwirkend: unsichere/sichere Vosk-Treffer neu einordnen
+      var thrNow = vkThr;
+      groups.forEach(function (g) { if (g.conf != null && (g.kws || g.kwsLow)) { var tot = g.kws + g.kwsLow; if (g.conf >= thrNow) { g.kws = tot; g.kwsLow = 0; } else { g.kws = 0; g.kwsLow = tot; } } });
+      var real = groups.filter(function (g) { return g.chrome || g.kws || g.kwsLow || g.free || g.flag === "missed"; });
+      var c = { chrome: 0, kws: 0, low: 0, free: 0, both: 0, onlyC: 0, onlyV: 0, comb: 0 };
+      real.forEach(function (g) {
+        if (g.chrome) c.chrome++; if (g.kws) c.kws++; if (g.kwsLow) c.low++; if (g.free) c.free++;
+        if (g.chrome && g.kws) c.both++; else if (g.chrome) c.onlyC++; else if (g.kws) c.onlyV++;
+        if (g.chrome || g.kws) c.comb++;
+      });
+      $("vkCounts").innerHTML = [[c.chrome, "Chrome"], [c.kws, "Vosk (sicher)"], [c.low, "Vosk (unsicher)"], [c.free, "Vosk frei"], [c.comb, "kombiniert"]]
+        .map(function (x) { return '<div class="stat"><b>' + x[0] + "</b><span>" + x[1] + "</span></div>"; }).join("");
+      var missed = groups.filter(function (g) { return g.flag === "missed"; });
+      var missedByV = missed.filter(function (g) { return g.kws; }).length;
+      var wrong = groups.filter(function (g) { return g.flag === "false" || g.flag === "double"; });
+      var txt = "Beide: <b>" + c.both + "</b> · nur Chrome: <b>" + c.onlyC + "</b> · nur Vosk: <b>" + c.onlyV + "</b>";
+      if (missed.length) txt += " · Bei <b>" + missed.length + "</b> als verpasst markierten Stellen hat Vosk <b>" + missedByV + "</b> erwischt.";
+      if (wrong.length) txt += " · " + wrong.length + " Markierung(en) falsch/doppelt – Vosk war dort " + wrong.filter(function (g) { return g.kws; }).length + "× beteiligt.";
+      if (!groups.length) txt = "Noch keine Treffer von Chrome oder Vosk in dieser Sitzung.";
+      $("vkSummary").innerHTML = txt;
+      function cell(v, extra) { return v ? '<td class="y">✓' + (extra || "") + "</td>" : '<td class="n">–</td>'; }
+      $("vkTable").innerHTML = groups.slice(-60).reverse().map(function (g) {
+        var vk = g.kws ? cell(1, g.conf != null ? " " + Math.round(g.conf * 100) + " %" : "") :
+                 g.kwsLow ? '<td class="m">? ' + Math.round((g.conf || 0) * 100) + " %</td>" : cell(0);
+        var fl = g.flag ? "<td>" + D.FLAGS[g.flag].icon + " " + D.FLAGS[g.flag].label + "</td>" : '<td class="n"></td>';
+        return "<tr><td>" + D.clock(g.t) + "</td>" + cell(g.chrome) + vk + cell(g.free) + fl + "</tr>";
+      }).join("") || '<tr><td colspan="5" class="n">–</td></tr>';
+    }
+    D.subscribe(function (entry) { if (!entry || entry.k === "vosk" || entry.k === "flag") renderVosk(); });
+
+    renderRx(); renderCount(); renderAll(); renderVosk();
   })();
   </script>
 </body>

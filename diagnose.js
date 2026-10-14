@@ -113,12 +113,18 @@
   // ---------------- Statistik ----------------
   function computeStats(s) {
     var st = { finals: 0, finalHits: 0, live: 0, kept: 0, near: 0, missed: 0, "false": 0, double: 0,
-               starts: 0, gapMs: 0, maxGapMs: 0, errors: {}, errCount: 0, silence: 0, runs: [], counted: s.cnt || 0 };
+               starts: 0, gapMs: 0, maxGapMs: 0, errors: {}, errCount: 0, silence: 0, runs: [], counted: s.cnt || 0,
+               voskKws: 0, voskKwsLow: 0, voskFree: 0 };
     s.e.forEach(function (e) {
       if (e.k === "final") { st.finals++; st.finalHits += e.n || 0; if (!e.n && e.near) st.near++; }
       else if (e.k === "live") st.live += e.n || 0;
       else if (e.k === "kept") st.kept += e.n || 0;
       else if (e.k === "flag") st[e.f] = (st[e.f] || 0) + 1;
+      else if (e.k === "vosk" && e.n) {
+        var sure = e.c == null || e.th == null || e.c >= e.th;
+        if (e.r === "kws") { if (sure) st.voskKws += e.n; else st.voskKwsLow += e.n; }
+        else st.voskFree += e.n;
+      }
       else if (e.k === "start") { st.starts++; if (e.g) { st.gapMs += e.g; st.maxGapMs = Math.max(st.maxGapMs, e.g); } }
       else if (e.k === "end" && e.dur) st.runs.push(e.dur);
       else if (e.k === "error") {
@@ -146,6 +152,35 @@
     st.dbAtHits = avgAround(s.e.filter(function (e) { return e.k === "live" || (e.k === "final" && e.n); }).map(function (e) { return e.t; }));
     st.dbAtMissed = avgAround(s.e.filter(function (e) { return e.k === "flag" && e.f === "missed"; }).map(function (e) { return e.t; }));
     return st;
+  }
+
+  // ---------------- Detektor-Vergleich (Chrome vs. Vosk) ----------------
+  // Liefert Gruppen [{t, chrome, kws, kwsLow, free, conf, flag}] – Erkennungen, die innerhalb
+  // von windowMs (Standard 4 s) liegen, gelten als dieselbe Stelle.
+  function compareDetectors(s, windowMs) {
+    windowMs = windowMs || 4000;
+    var ev = [];
+    (s.adds || []).forEach(function (a) { for (var i = 0; i < a[1]; i++) ev.push({ t: a[0], d: "chrome" }); });
+    s.e.forEach(function (e) {
+      if (e.k === "vosk" && e.n) {
+        var sure = e.c == null || e.th == null || e.c >= e.th;
+        for (var i = 0; i < e.n; i++) ev.push({ t: e.t, d: e.r === "kws" ? (sure ? "kws" : "kwsLow") : "free", c: e.c });
+      }
+      if (e.k === "flag") ev.push({ t: e.t, d: "flag", f: e.f });
+    });
+    ev.sort(function (a, b) { return a.t - b.t; });
+    var groups = [];
+    ev.forEach(function (x) {
+      // passende offene Gruppe: nah genug und dieser Detektor dort noch nicht vertreten
+      var g = null;
+      for (var i = groups.length - 1; i >= 0 && x.t - groups[i].t <= windowMs; i--) {
+        if (x.d === "flag" ? !groups[i].flag : !groups[i][x.d]) { g = groups[i]; break; }
+      }
+      if (!g) { g = { t: x.t, chrome: 0, kws: 0, kwsLow: 0, free: 0, conf: null, flag: null }; groups.push(g); }
+      if (x.d === "flag") g.flag = x.f;
+      else { g[x.d]++; if (x.c != null) g.conf = Math.max(g.conf || 0, x.c); }
+    });
+    return groups;
   }
 
   // ---------------- Darstellung eines Eintrags (Panel + Seite) ----------------
@@ -180,6 +215,14 @@
         cls = "final";
         if (e.n) { cls = "hit"; h = "✅ " + h; p = "[TREFFER x" + e.n + "] " + p; }
         else if (e.near) { cls = "near"; h = "🤔 Beinahe? " + h; p = "[BEINAHE?] " + p; }
+        break;
+      case "vosk":
+        var ok = e.n && (e.c == null || e.th == null || e.c >= e.th);
+        var lbl = e.r === "kws" ? "Vosk (Schlüsselwort)" : "Vosk (frei)";
+        h = (ok ? "🎯 " : e.n ? "◌ " : "· ") + lbl + ": " + highlight(e.x) +
+            (e.c != null ? " <small>(Sicherheit " + Math.round(e.c * 100) + " %" + (e.n && !ok ? ", unter Schwelle " + Math.round(e.th * 100) + " %" : "") + ")</small>" : "");
+        cls = ok ? "vosk" : "vosk-low";
+        p = "[" + lbl.toUpperCase() + (ok ? " TREFFER" : e.n ? " unsicher" : "") + "] " + e.x + (e.c != null ? " (" + Math.round(e.c * 100) + " %)" : "");
         break;
       case "flag":
         var f = FLAG_INFO[e.f] || { icon: "🚩", label: e.f };
@@ -278,7 +321,19 @@
     },
     note: function (text) { push({ k: "note", x: text }); },
     jsError: function (err, where) { jsError(err, where || "?"); },
-    added: function (n) { if (!session) newSession(); session.cnt += n; dirty = true; notify(null); },
+    added: function (n) {
+      if (!session) newSession();
+      session.cnt += n;
+      (session.adds = session.adds || []).push([Date.now(), n]);   // Zeitpunkte für den Detektor-Vergleich
+      dirty = true; notify(null);
+    },
+    // Ergebnis des zweiten Detektors (Vosk): rec = "kws" | "free", conf 0..1, n = Treffer, thr = Schwelle
+    vosk: function (rec, text, conf, n, thr) {
+      var e = { k: "vosk", r: rec, x: text, n: n || 0 };
+      if (conf != null) e.c = Math.round(conf * 100) / 100;
+      if (thr != null) e.th = thr;
+      push(e);
+    },
     interim: function (text) { interimNow = text || ""; },
     live: function (text, n) { push({ k: "live", x: text, n: n }); },
     kept: function (text, finalText, n) { push({ k: "kept", x: text, y: finalText, n: n }); },
@@ -327,6 +382,7 @@
       localStorage.setItem(STORE, JSON.stringify(st));
       return obj;
     },
+    compare: compareDetectors,
     computeStats: computeStats, renderEntry: renderEntry, highlight: highlight, countMatches: countMatches, clock: clock, esc: esc,
     levelNow: function () { return levelNow; }, recentDb: recentDb, micLabel: function () { return meter && meter.label; },
     startSampler: startSampler, stopSampler: stopSampler,

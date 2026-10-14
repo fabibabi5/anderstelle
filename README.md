@@ -124,6 +124,31 @@ Hinweis: Nicht gleichzeitig mit der Wal-Party erkennen lassen – Chrome erlaubt
 Erkennung auf einmal. Die Wal-Party-Sitzung lässt sich aber live in der Diagnose-Seite
 mitverfolgen.
 
+### 🧪 Vosk-Test: zweiter Detektor (nur auf der Diagnose-Seite)
+
+Vosk ist eine Offline-Spracherkennung, die man auf **feste Phrasen beschränken** kann
+(„Grammatik“): Sie sucht dann nur nach „an der Stelle“, statt alles verstehen zu wollen.
+Sie läuft als kleines Programm lokal auf dem Mac; die Diagnose-Seite schickt ihr das
+Mikrofon-Audio über `ws://127.0.0.1:2700`. Nichts verlässt den Rechner.
+
+```bash
+./vosk/start.sh                 # beim ersten Mal: legt vosk/.venv an, installiert Vosk, lädt das Modell (~45 MB)
+./vosk/start.sh --model gross   # großes deutsches Modell (~1,9 GB), genauer
+```
+
+Dann `diagnose.html` öffnen (am besten über `http://localhost:8000/diagnose.html`) und den
+Live-Test starten – Vosk startet automatisch mit („mit Live-Test starten/stoppen“).
+Im Bereich **„🧪 Vosk-Test“**:
+
+- Live-Anzeige von Schlüsselwort- und freier Vosk-Erkennung
+- Grammatik bearbeiten (Phrasen, die gezählt werden, plus „Ablenker“ wie „an dieser stelle“)
+- **Sicherheits-Schwelle** (Vosk liefert pro Wort eine Sicherheit; darunter = „unsicher“)
+- **Vergleich Stelle für Stelle:** Chrome / Vosk / Vosk frei / deine Markierung – inkl.
+  „bei X als verpasst markierten Stellen hat Vosk Y erwischt“ und einem kombinierten Zähler
+- Vosk-Treffer erscheinen auch im Transkript (🎯), im Protokoll (Filter „Vosk“) und in der Zeitleiste
+
+Anderer Port: `diagnose.html?vosk=ws://127.0.0.1:2701` und `./vosk/start.sh --port 2701`.
+
 ### Erkennung: was live gehört wurde, bleibt gezählt
 
 Leise angehängte „… an der Stelle" erkennt Chrome oft im **Live-Zwischenstand**, streicht
