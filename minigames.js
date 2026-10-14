@@ -9,8 +9,9 @@
  * Wal-2048, Klausur-Minesweeper, Wal-Snake, Mitschreib-Simulator, Aura-Clicker,
  * Tic-Tac-Toe gegen den Dozenten, Orakel.
  *
- * Auf Seiten ohne eigenen Treffer-Hook (index.html, wal-party.html) mit
- * { watchCount: true } einbinden – dann liest das Modul den Zähler selbst mit.
+ * Den „an der Stelle“-Zähler (localStorage "anderstelle.count") liest das Modul auf jeder Seite selbst mit.
+ * Jeder Treffer zählt nur einmal, auch wenn mehrere Tabs offen sind (data.lastCount). Ändert ein
+ * anderer Tab die Spieldaten, lädt dieser Tab sie per storage-Event neu, damit nichts überschrieben wird.
  * Direkt öffnen: Seite mit #minigames in der Adresse aufrufen. Rekorde liegen in localStorage ("anderstelle.minigames").
  */
 (function (global) {
@@ -42,7 +43,7 @@
   var CSS = [
     "#mg-open{position:fixed;right:12px;bottom:12px;z-index:79;font:800 15px/1 -apple-system,system-ui,sans-serif;padding:11px 15px;border-radius:14px;border:none;",
     "cursor:pointer;color:#022;background:linear-gradient(90deg,#ffd166,#5ff0d8);box-shadow:0 8px 24px rgba(0,0,0,.4)}",
-    "#mg{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;background:rgba(1,12,22,.72);backdrop-filter:blur(3px);padding:12px}",
+    "#mg{position:fixed;inset:0;z-index:95;display:none;align-items:center;justify-content:center;background:rgba(1,12,22,.72);backdrop-filter:blur(3px);padding:12px}",
     "#mg.on{display:flex}",
     ".mg-panel{width:min(720px,100%);max-height:94vh;overflow:auto;background:linear-gradient(180deg,#05324b,#032236);color:#eafcff;border:1px solid rgba(255,255,255,.15);",
     "border-radius:20px;box-shadow:0 30px 80px rgba(0,0,0,.6);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}",
@@ -167,16 +168,14 @@
     buildChallenge();
     scheduleChallenge();
 
-    // Seiten ohne eigenen Hook: Zähler selbst mitlesen (Bingo/Orakel)
-    if (o.watchCount) {
-      var lastCount = null;
-      var poll = function () {
-        var n = parseInt(localStorage.getItem("anderstelle.count"), 10) || 0;
-        if (lastCount !== null && n > lastCount) for (var k = lastCount; k < n; k++) hit();
-        lastCount = n;
-      };
-      poll(); setInterval(poll, 1500);
-    }
+    // Zähler selbst mitlesen (Bingo/Orakel) und Orakel-Ende prüfen
+    var poll = function () { syncCount(); oracleCheckEnd(); };
+    setTimeout(poll, 0); setInterval(poll, 1500);   // erst nach dem ersten Countdown-Tick (hasUpdate)
+    // Andere Tabs haben gespeichert → frisch laden, sonst überschreibt dieser Tab deren Rekorde
+    addEventListener("storage", function (e) {
+      if (e.key === STORE) { data = load(); redrawLive(); }
+      else if (e.key === "anderstelle.count") syncCount();
+    });
     if (/minigames/i.test(location.hash)) open(null);
   }
 
@@ -257,18 +256,19 @@
     icon: "🎯", name: "Dozenten-Bingo", desc: "Typische Vorlesungs-Momente abhaken. „an der Stelle“-Felder hakt die Erkennung automatisch ab.",
     bestText: function () { return data.bingoWins ? "Bingos bisher: " + data.bingoWins : ""; },
     start: function (root) {
-      var c = bingoCard();
-      var info = el("div", "mg-info", "<span>Karte von heute</span><span>„an der Stelle“ seit Kartenstart: " + c.hits + "</span>");
+      var info = el("div", "mg-info", "<span>Karte von heute</span><span></span>");
       var grid = el("div", "mg-bingo"), msg = el("div", "mg-msg");
       function draw() {
+        var c = bingoCard();   // jedes Mal frisch: Treffer/andere Tabs können die Karte ersetzt haben
+        info.lastChild.textContent = "„an der Stelle“ seit Kartenstart: " + c.hits;
         var wins = bingoLines(c.marked), winCells = [].concat.apply([], wins);
         grid.innerHTML = "";
         c.cells.forEach(function (t, i) {
           var d = el("div", (c.marked.indexOf(i) >= 0 ? "x " : "") + (BINGO_AUTO[t] ? "auto " : "") + (winCells.indexOf(i) >= 0 ? "win" : ""), t);
           d.addEventListener("click", function () {
             if (BINGO_AUTO[t]) { msg.textContent = "Das Feld hakt die Spracherkennung ab. Kein Schummeln 🧐"; return; }
-            var k = c.marked.indexOf(i);
-            if (k >= 0) c.marked.splice(k, 1); else c.marked.push(i);
+            var m = bingoCard().marked, k = m.indexOf(i);   // frisch holen: data kann inzwischen neu geladen sein
+            if (k >= 0) m.splice(k, 1); else m.push(i);
             save(); bingoCheck(); draw();
           });
           grid.appendChild(d);
@@ -277,11 +277,11 @@
       }
       var row = el("div", "mg-row");
       var nb = el("button", "sec", "🔄 Neue Karte");
-      nb.addEventListener("click", function () { delete data.bingo; c = bingoCard(); draw(); });
+      nb.addEventListener("click", function () { delete data.bingo; bingoCard(); draw(); });
       row.appendChild(nb);
       root.appendChild(info); root.appendChild(grid); root.appendChild(msg); root.appendChild(row);
       draw();
-      GAMES.bingo.redraw = function () { info.lastChild.textContent = "„an der Stelle“ seit Kartenstart: " + c.hits; draw(); };
+      GAMES.bingo.redraw = draw;
       return function () { GAMES.bingo.redraw = null; };
     }
   };
@@ -297,10 +297,11 @@
       var msg = el("div", "mg-msg", "Klicken oder Leertaste zum Starten");
       root.appendChild(info); root.appendChild(cv); root.appendChild(msg);
       var ctx = cv.getContext("2d"), scoreEl = info.querySelector("b");
-      var y, vy, pipes, score, state = "ready", raf = null, last = 0, spawnT;
+      var y, vy, pipes, score, state = "ready", raf = null, last = 0, spawnT, overAt = 0;
 
       function reset() { y = H / 2; vy = 0; pipes = []; score = 0; spawnT = 0; scoreEl.textContent = 0; }
       function flap() {
+        if (state === "over" && performance.now() - overAt < 600) return;   // Panik-Klicks nach dem Tod ignorieren
         if (state === "ready" || state === "over") { reset(); state = "run"; msg.textContent = ""; last = performance.now(); raf = requestAnimationFrame(loop); }
         vy = -6.2;
       }
@@ -339,7 +340,7 @@
         ctx.fillText("🐳", 0, 0); ctx.restore();
       }
       function over() {
-        state = "over"; cancelAnimationFrame(raf);
+        state = "over"; overAt = performance.now(); cancelAnimationFrame(raf);
         var rec = record("flappy", score);
         msg.textContent = (rec && score > 0 ? "🏆 Neuer Rekord: " : "💀 Gegen die Folie geschwommen. ") + score + " Folien · Klicken für neuen Versuch";
         info.lastChild.textContent = "Rekord: " + best("flappy");
@@ -374,7 +375,7 @@
             score = Math.max(0, score + pts);
             info.querySelector("b").textContent = score;
             msg.textContent = pts > 0 ? rnd(["Bonk! 🔨", "W 🐳", "Aura +" + pts * 100, "sauber"]) : (it === "📝" ? "Klausur angefasst 😱 " + pts : "Den Dozenten gehauen?! " + pts + " 💀");
-            h.innerHTML = ""; h.removeAttribute("data-it");
+            h.innerHTML = ""; h.removeAttribute("data-it"); h._tok = null;
             if (pts < 0) { h.classList.add("bonk"); setTimeout(function () { h.classList.remove("bonk"); }, 300); }
           });
           grid.appendChild(h); holes.push(h);
@@ -386,8 +387,9 @@
         if (free.length) {
           var h = rnd(free), r = Math.random();
           var it = r < 0.55 ? "🐳" : r < 0.68 ? "🐋" : r < 0.88 ? "👨‍🏫" : "📝";
-          h.setAttribute("data-it", it); h.innerHTML = "<span>" + it + "</span>";
-          timers.push(setTimeout(function () { if (h.getAttribute("data-it") === it) { h.innerHTML = ""; h.removeAttribute("data-it"); } }, rint(650, 1100)));
+          var tok = {};   // pro Auftauchen eindeutig, damit ein alter Timer keinen neuen Wal wegräumt
+          h._tok = tok; h.setAttribute("data-it", it); h.innerHTML = "<span>" + it + "</span>";
+          timers.push(setTimeout(function () { if (h._tok === tok) { h.innerHTML = ""; h.removeAttribute("data-it"); h._tok = null; } }, rint(650, 1100)));
         }
         timers.push(setTimeout(spawn, rint(350, 700)));
       }
@@ -432,7 +434,7 @@
         (function step() {
           if (i < n) { box.textContent = rnd(DECOYS); state = "decoy"; i++; timer = setTimeout(step, rint(450, 1100)); }
           else { box.textContent = "67"; box.classList.add("go"); state = "go"; shownAt = performance.now();
-                 timer = setTimeout(function () { if (state === "go") { penalties++; msg.textContent = "Zu langsam 🐌 (+500 ms)"; times.push(1000); done(); } }, 1500); }
+                 timer = setTimeout(function () { if (state === "go") { msg.textContent = "Zu langsam 🐌 (zählt als 1000 ms)"; times.push(1000); done(); } }, 1500); }
         })();
       }
       function done() {
@@ -447,7 +449,7 @@
         var avg = Math.round(times.reduce(function (a, b) { return a + b; }, 0) / times.length) + penalties * 150;
         var rec = record("react", avg, true);
         box.className = "mg-react"; box.textContent = avg + " ms";
-        msg.textContent = (rec ? "🏆 Neue Bestzeit! " : "") + "Ø " + avg + " ms" + (penalties ? " (inkl. " + penalties + " Fehler-Strafen)" : "") +
+        msg.textContent = (rec ? "🏆 Neue Bestzeit! " : "") + "Ø " + avg + " ms" + (penalties ? " (inkl. " + penalties + " × 150 ms Strafe für Fehlklicks)" : "") +
                           " · " + (avg < 350 ? "Sigma-Reflexe 🗿" : avg < 500 ? "solide 👍" : "Bro ist cooked 💀") + " · Klick für neue Runde";
         info.lastChild.textContent = "Bestzeit: Ø " + best("react") + " ms";
         if (avg < 400) reward(6700, "Six-Seven-Reflexe");
@@ -566,6 +568,7 @@
       function canMove() {
         for (var i = 0; i < 16; i++) {
           if (!cells[i]) return true;
+          if (cells[i] >= 11) continue;   // 🐳 verschmilzt nicht weiter (siehe move)
           if (i % 4 < 3 && cells[i] === cells[i + 1]) return true;
           if (i < 12 && cells[i] === cells[i + 4]) return true;
         }
@@ -686,30 +689,42 @@
       var cv = el("canvas", "mg-canvas"); cv.width = W; cv.height = H;
       var msg = el("div", "mg-msg", "Pfeiltaste, Klick oder Wischen zum Starten");
       root.appendChild(info); root.appendChild(cv); root.appendChild(msg);
-      var ctx = cv.getContext("2d"), snake, dir, nextDir, food, gold, score, state = "ready", timer = null;
+      var ctx = cv.getContext("2d"), snake, dir, nextDir, food, gold, score, state = "ready", timer = null, overAt = 0;
+      var DIRS = { left: { x: -1, y: 0 }, right: { x: 1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } };
       function freeCell() {
         while (true) { var p = { x: rint(0, C - 1), y: rint(0, R - 1) };
           if (!snake.some(function (s) { return s.x === p.x && s.y === p.y; })) return p; }
       }
-      function reset() { snake = [{ x: 6, y: 7 }, { x: 5, y: 7 }, { x: 4, y: 7 }]; dir = nextDir = { x: 1, y: 0 }; score = 0; food = freeCell(); gold = null; info.querySelector("b").textContent = 0; draw(); }
+      // v = Startrichtung; der Körper liegt dahinter, damit jede Richtung als erster Zug klappt
+      function reset(v) {
+        v = v || DIRS.right;
+        snake = [0, 1, 2].map(function (i) { return { x: 10 - v.x * i, y: 7 - v.y * i }; });
+        dir = nextDir = v; score = 0; gold = null; food = freeCell(); info.querySelector("b").textContent = 0; draw();
+      }
       function setDir(d) {
-        var v = { left: { x: -1, y: 0 }, right: { x: 1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } }[d];
-        if (!v || (v.x === -dir.x && v.y === -dir.y)) return;
+        var v = DIRS[d];
+        if (!v) return;
+        if (state !== "run") {
+          if (state === "over" && performance.now() - overAt < 600) return;   // Panik-Tasten nach dem Tod ignorieren
+          reset(v); go(); return;
+        }
+        if (v.x === -dir.x && v.y === -dir.y) return;
         nextDir = v;
-        if (state !== "run") go();
       }
       function go() {
-        if (state === "over") reset();
+        if (state === "over") { if (performance.now() - overAt < 600) return; reset(); }
         state = "run"; msg.textContent = "";
         clearTimeout(timer); step();
       }
       function step() {
         dir = nextDir;
         var h = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
-        if (h.x < 0 || h.y < 0 || h.x >= C || h.y >= R || snake.some(function (s) { return s.x === h.x && s.y === h.y; })) return die();
+        var eatFood = h.x === food.x && h.y === food.y, eatGold = !eatFood && gold && h.x === gold.p.x && h.y === gold.p.y;
+        var body = eatFood || eatGold ? snake : snake.slice(0, -1);   // das Schwanzende rückt im selben Schritt weiter
+        if (h.x < 0 || h.y < 0 || h.x >= C || h.y >= R || body.some(function (s) { return s.x === h.x && s.y === h.y; })) return die();
         snake.unshift(h);
-        if (h.x === food.x && h.y === food.y) { score++; food = freeCell(); if (!gold && Math.random() < 0.2) gold = { p: freeCell(), t: 40 }; }
-        else if (gold && h.x === gold.p.x && h.y === gold.p.y) { score += 5; gold = null; snake.push(snake[snake.length - 1]); }
+        if (eatFood) { score++; food = freeCell(); if (!gold && Math.random() < 0.2) gold = { p: freeCell(), t: 40 }; }
+        else if (eatGold) { score += 5; gold = null; snake.push(snake[snake.length - 1]); }
         else snake.pop();
         if (gold && --gold.t <= 0) gold = null;
         info.querySelector("b").textContent = score;
@@ -717,7 +732,7 @@
         timer = setTimeout(step, Math.max(60, 140 - score * 3));
       }
       function die() {
-        state = "over";
+        state = "over"; overAt = performance.now();
         var rec = record("snake", score);
         msg.textContent = (rec && score ? "🏆 Neuer Rekord: " : "💀 Bonk. ") + score + " Krill · Klicken für neuen Versuch";
         info.lastChild.textContent = "Rekord: " + best("snake");
@@ -759,8 +774,8 @@
       var box = el("div", "mg-type"), inp = el("input"), msg = el("div", "mg-msg", "Tippen startet das Spiel");
       inp.placeholder = "hier mitschreiben …"; inp.className = "mg-type-in"; inp.autocomplete = "off"; inp.spellcheck = false;
       root.appendChild(info); root.appendChild(box); root.appendChild(inp); root.appendChild(msg);
-      var words = [], score = 0, lives = 3, running = false, raf = null, last = 0, spawnIn = 0;
-      function start() { running = true; score = 0; lives = 3; words.forEach(function (w) { w.el.remove(); }); words = []; spawnIn = 0; last = performance.now(); msg.textContent = ""; upd(); raf = requestAnimationFrame(loop); }
+      var words = [], score = 0, lives = 3, state = "ready", raf = null, last = 0, spawnIn = 0;
+      function start() { state = "run"; score = 0; lives = 3; words.forEach(function (w) { w.el.remove(); }); words = []; spawnIn = 0; last = performance.now(); msg.textContent = ""; upd(); raf = requestAnimationFrame(loop); }
       function upd() { info.querySelector("b").textContent = score; info.querySelector("i").textContent = lives > 0 ? "❤️".repeat(lives) : "💀"; }
       function loop(t) {
         var dt = Math.min(50, t - last) / 1000; last = t;
@@ -781,20 +796,24 @@
         raf = requestAnimationFrame(loop);
       }
       function end() {
-        running = false; cancelAnimationFrame(raf);
+        state = "over"; cancelAnimationFrame(raf); inp.value = "";
         var rec = record("typing", score);
-        msg.textContent = (rec && score ? "🏆 Neuer Rekord: " : "Mitschrift verloren 📉 ") + score + " Wörter · Tippen für neue Runde";
+        msg.textContent = (rec && score ? "🏆 Neuer Rekord: " : "Mitschrift verloren 📉 ") + score + " Wörter · Enter für neue Runde";
         info.lastChild.textContent = "Rekord: " + best("typing");
         if (score >= 25) reward(score * 80, "Mitschreib-Simulator");
       }
       inp.addEventListener("input", function () {
-        if (!running) { start(); }
+        if (state === "over") { inp.value = ""; return; }   // nach Game Over erst per Enter neu starten
+        if (state === "ready") start();
         var v = inp.value.trim().toLowerCase();
         for (var i = 0; i < words.length; i++) {
           if (words[i].text.toLowerCase() === v) {
             words[i].el.remove(); words.splice(i, 1); score++; upd(); inp.value = ""; return;
           }
         }
+      });
+      inp.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && state === "over") { e.preventDefault(); inp.value = ""; start(); }
       });
       setTimeout(function () { inp.focus(); }, 50);
       return function () { cancelAnimationFrame(raf); };
@@ -849,7 +868,7 @@
       });
       big.addEventListener("pointerdown", function (e) {
         var c = clicker(), n = perClick();
-        c.aura += n; c.total += n; render();
+        c.aura += n; c.total += n; save(); render();
         var f = el("span", "mg-plus", "+" + de(n));
         var r = big.getBoundingClientRect();
         f.style.left = (e.clientX - r.left) + "px"; f.style.top = (e.clientY - r.top) + "px";
@@ -868,13 +887,15 @@
     for (var i = 0; i < 8; i++) { var l = TTT_LINES[i]; if (b[l[0]] && b[l[0]] === b[l[1]] && b[l[0]] === b[l[2]]) return b[l[0]]; }
     return b.indexOf(null) < 0 ? "draw" : null;
   }
-  function minimax(b, me) {
+  // Tiefe fließt in die Wertung ein: schneller Sieg > später Sieg, späte Niederlage > frühe
+  function minimax(b, me, depth) {
+    depth = depth || 0;
     var w = tttWinner(b);
-    if (w === "D") return { s: 1 }; if (w === "P") return { s: -1 }; if (w === "draw") return { s: 0 };
+    if (w === "D") return { s: 10 - depth }; if (w === "P") return { s: depth - 10 }; if (w === "draw") return { s: 0 };
     var bestM = null;
     for (var i = 0; i < 9; i++) if (!b[i]) {
       b[i] = me ? "D" : "P";
-      var r = minimax(b, !me).s;
+      var r = minimax(b, !me, depth + 1).s;
       b[i] = null;
       if (!bestM || (me ? r > bestM.s : r < bestM.s)) bestM = { s: r, i: i };
     }
@@ -884,7 +905,7 @@
     icon: "❌", name: "Tic-Tac-Toe vs. Dozent", desc: "Du 🐳 gegen den Dozenten 👨‍🏫. Er ist fast unschlagbar – außer er ist abgelenkt.",
     bestText: function () { var t = data.ttt; return t ? "Bilanz: " + t.w + "S / " + t.d + "U / " + t.l + "N" : ""; },
     start: function (root) {
-      if (!data.ttt) data.ttt = { w: 0, d: 0, l: 0 };
+      function tt() { if (!data.ttt) data.ttt = { w: 0, d: 0, l: 0 }; return data.ttt; }
       var info = el("div", "mg-info", ""), grid = el("div", "mg-ttt"), msg = el("div", "mg-msg");
       var row = el("div", "mg-row"), nb = el("button", "sec", "🔄 Neue Runde");
       row.appendChild(nb);
@@ -892,13 +913,13 @@
       var b, done, t = null;
       var QUIPS = ["„Interessanter Zug. Falsch, aber interessant.“", "„Das hatten wir letzte Woche.“", "„An der Stelle setze ich hierhin.“",
                    "„Ist das klausurrelevant? Ja.“", "„Gibt es Fragen zu meinem Zug?“"];
-      function stats() { info.innerHTML = "<span>Siege: <b>" + data.ttt.w + "</b></span><span>Unentschieden: " + data.ttt.d + "</span><span>Niederlagen: " + data.ttt.l + "</span>"; }
-      function reset() { b = [null, null, null, null, null, null, null, null, null]; done = false; msg.textContent = "Du fängst an 🐳"; draw(); }
+      function stats() { var s = tt(); info.innerHTML = "<span>Siege: <b>" + s.w + "</b></span><span>Unentschieden: " + s.d + "</span><span>Niederlagen: " + s.l + "</span>"; }
+      function reset() { clearTimeout(t); b = [null, null, null, null, null, null, null, null, null]; done = false; msg.textContent = "Du fängst an 🐳"; draw(); }
       function finish(w) {
         done = true;
-        if (w === "P") { data.ttt.w++; msg.textContent = "🏆 Du hast den Dozenten besiegt! +5000 Aura"; reward(5000, "Dozent im Tic-Tac-Toe besiegt"); }
-        else if (w === "D") { data.ttt.l++; msg.textContent = rnd(["👨‍🏫 „Setzen, sechs.“", "👨‍🏫 „Das üben wir nochmal.“", "👨‍🏫 „Nicht bestanden.“"]); }
-        else { data.ttt.d++; msg.textContent = "Unentschieden 🤝 „Damit kann ich leben.“"; }
+        if (w === "P") { tt().w++; msg.textContent = "🏆 Du hast den Dozenten besiegt! +5000 Aura"; reward(5000, "Dozent im Tic-Tac-Toe besiegt"); }
+        else if (w === "D") { tt().l++; msg.textContent = rnd(["👨‍🏫 „Setzen, sechs.“", "👨‍🏫 „Das üben wir nochmal.“", "👨‍🏫 „Nicht bestanden.“"]); }
+        else { tt().d++; msg.textContent = "Unentschieden 🤝 „Damit kann ich leben.“"; }
         save(); stats();
       }
       function draw() {
@@ -942,7 +963,7 @@
         var t = data.oracle;
         if (t && !t.done) {
           w.innerHTML = '<div class="ball">🔮</div><p>Dein Tipp: <b>' + t.guess + "×</b> „an der Stelle“ bis Vorlesungsende.</p>" +
-                        "<p>Seit dem Tipp gehört: <b>" + t.seen + "×</b></p><p style='color:#9fd3e0'>Die Auswertung kommt automatisch, wenn der Countdown abläuft.</p>";
+                        "<p>Seit dem Tipp gehört: <b>" + t.seen + "×</b></p><p style='color:#9fd3e0'>" + oracleEndText() + "</p>";
           var b = el("button", "sec", "Tipp zurückziehen");
           b.addEventListener("click", function () { delete data.oracle; save(); draw(); });
           w.appendChild(el("div", "mg-row")).appendChild(b);
@@ -954,7 +975,7 @@
           b2.addEventListener("click", function () {
             var g = parseInt(inp.value, 10);
             if (isNaN(g) || g < 0) return;
-            data.oracle = { guess: g, seen: 0, done: false }; save(); draw();
+            data.oracle = { guess: g, seen: 0, done: false, ts: Date.now() }; save(); draw();
             if (o.toast) o.toast("🔮 Das Orakel hat deinen Tipp (" + g + "×) notiert.");
           });
           var row = el("div", "mg-row"); row.appendChild(inp); row.appendChild(b2); w.appendChild(row);
@@ -965,7 +986,29 @@
       return function () { GAMES.oracle.redraw = null; };
     }
   };
+  // Vorlesungsende aus dem Countdown (nur gespeicherte Einstellung, d. h. echte Uhrzeit, kein Demo-Zeitraffer)
+  function countdownEnd() {
+    try { var c = JSON.parse(localStorage.getItem("anderstelle.countdown")); return c && c.end > 0 ? c.end : null; } catch (e) { return null; }
+  }
+  function oracleEndText() {
+    if (hasUpdate) return "Die Auswertung kommt automatisch, wenn der Countdown abläuft.";
+    var end = countdownEnd();
+    if (end && end > Date.now()) {
+      var d = new Date(end);
+      return "Auswertung automatisch um " + d.getHours() + ":" + ("0" + d.getMinutes()).slice(-2) + " Uhr (Vorlesungsende laut ⏳ Countdown).";
+    }
+    return "⚠️ Kein Vorlesungsende bekannt – stell es im ⏳ Countdown ein, dann wird automatisch ausgewertet.";
+  }
+  // Seiten ohne Countdown-Uhr (index/wal-party): Ende anhand der gespeicherten Countdown-Einstellung erkennen
+  function oracleCheckEnd() {
+    if (hasUpdate) return;   // countdown.html wertet selbst über update() aus
+    var t = data.oracle, end = countdownEnd();
+    if (!t || t.done || !end) return;
+    if (!t.ts) { t.ts = Date.now(); save(); }   // alter Tipp ohne Zeitstempel
+    if (t.ts < end && Date.now() >= end) oracleResolve();
+  }
   function oracleResolve() {
+    data = load();   // frischer Stand, damit nicht zwei Tabs gleichzeitig auswerten
     var t = data.oracle;
     if (!t || t.done) return;
     var diff = Math.abs(t.guess - t.seen);
@@ -974,9 +1017,11 @@
     save();
     if (diff === 0) { data.oracleWins = (data.oracleWins || 0) + 1; save(); reward(10000, "Orakel-Volltreffer"); }
     else if (diff <= 2) reward(1000, "Orakel fast richtig");
+    redrawLive();
     setTimeout(function () {
       if (o.say) o.say("🔮 ORAKEL<small>Tipp " + t.guess + "× · tatsächlich " + t.seen + "× · " + t.verdict + "</small>", 5000);
-    }, 6500);   // nach der Schluss-Party
+      else popup("🔮 <b>Orakel-Auswertung</b><br>Tipp " + t.guess + "× · tatsächlich " + t.seen + "× · " + t.verdict, null, 15000);
+    }, hasUpdate ? 6500 : 0);   // auf dem Countdown erst nach der Schluss-Party
   }
 
   // ================= Challenges =================
@@ -984,42 +1029,66 @@
   var CHALLENGES = [
     ["flappy", "Schaffst du <b>10 Folien</b> bei Flappy Wal?"], ["whack", "Knackst du <b>20 Punkte</b> bei Whack-a-Wal?"],
     ["react", "Bist du schneller als <b>400 ms</b> bei Six-Seven?"], ["memory", "Memory in <b>unter 10 Zügen</b>?"],
-    ["bingo", "Schon ein <b>Bingo</b>? Check deine Karte!"], ["oracle", "Das <b>Orakel</b> wartet auf deinen Tipp 🔮"]
+    ["bingo", "Schon ein <b>Bingo</b>? Check deine Karte!"], ["oracle", "Das <b>Orakel</b> wartet auf deinen Tipp 🔮"],
+    ["w2048", "Schaffst du den <b>🐳 Blauwal</b> bei Wal-2048?"], ["mines", "Klausur-Minesweeper in <b>unter 60 s</b>?"],
+    ["snake", "Wird dein Wal <b>20 Krill</b> lang?"], ["typing", "Schreibst du <b>25 Wörter</b> mit, bevor die Tafel gewischt wird?"],
+    ["clicker", "Deine <b>Aura</b> wartet aufs Abholen 🗿"], ["ttt", "Besiegst du den <b>Dozenten</b> im Tic-Tac-Toe?"]
   ];
   function buildChallenge() {
     chal = document.createElement("div");
     chal.id = "mg-chal";
     document.body.appendChild(chal);
   }
+  // Kleines Popup unten links; game = Spiel für den „Spielen“-Knopf (oder null)
+  var chalHide = null;
+  function popup(html, game, ms) {
+    chal.innerHTML = html + '<div class="mg-row">' + (game ? "<button>Spielen</button>" : "") + '<button class="sec">' + (game ? "Nö" : "OK") + "</button></div>";
+    var bs = chal.querySelectorAll("button");
+    if (game) bs[0].onclick = function () { chal.classList.remove("on"); open(game); };
+    bs[bs.length - 1].onclick = function () { chal.classList.remove("on"); };
+    chal.classList.add("on");
+    clearTimeout(chalHide);
+    chalHide = setTimeout(function () { chal.classList.remove("on"); }, ms || 12000);
+  }
   function scheduleChallenge() {
     setTimeout(function () {
       if (!modal.classList.contains("on")) {
         var c = rnd(CHALLENGES);
-        chal.innerHTML = "🎮 <b>Minigame-Challenge</b><br>" + c[1] + '<div class="mg-row"><button>Spielen</button><button class="sec">Nö</button></div>';
-        var bs = chal.querySelectorAll("button");
-        bs[0].onclick = function () { chal.classList.remove("on"); open(c[0]); };
-        bs[1].onclick = function () { chal.classList.remove("on"); };
-        chal.classList.add("on");
-        setTimeout(function () { chal.classList.remove("on"); }, 12000);
+        popup("🎮 <b>Minigame-Challenge</b><br>" + c[1], c[0]);
       }
       scheduleChallenge();
     }, rint(360, 600) * 1000 / speed);   // alle 6–10 Minuten
   }
 
   // ================= Hooks =================
-  var lastR = null;
+  var lastR = null, hasUpdate = false;
   function update(R) {
+    hasUpdate = true;
     if (lastR !== null && lastR > 0 && R <= 0) oracleResolve();
     lastR = R;
   }
-  function hit() {
-    var c = bingoCard();
-    c.hits++; save();
-    bingoAutoMark();
-    if (data.oracle && !data.oracle.done) { data.oracle.seen++; save(); }
+  function redrawLive() {
     if (GAMES.bingo.redraw) GAMES.bingo.redraw();
     if (GAMES.oracle.redraw) GAMES.oracle.redraw();
   }
+  // Neue Treffer anhand des gemeinsamen Zählers verbuchen. data.lastCount liegt mit im Speicher,
+  // daher zählt jeder Treffer genau einmal – egal, wie viele Tabs gleichzeitig mitlesen.
+  function syncCount() {
+    var n = parseInt(localStorage.getItem("anderstelle.count"), 10) || 0;
+    data = load();
+    var last = data.lastCount;
+    if (last === n) return;
+    data.lastCount = n;
+    if (last != null && n > last) {
+      var c = bingoCard();
+      c.hits += n - last;
+      if (data.oracle && !data.oracle.done) data.oracle.seen += n - last;
+      save();
+      bingoAutoMark();
+    } else save();   // erster Start oder Zähler zurückgesetzt/−1: nur merken
+    redrawLive();
+  }
+  function hit() { syncCount(); }   // countdown.html meldet Treffer; gezählt wird über den gemeinsamen Zähler
 
   global.MiniGames = { mount: mount, update: update, hit: hit, open: open, close: close, games: Object.keys(GAMES) };
 })(window);
