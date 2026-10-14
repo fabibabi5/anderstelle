@@ -335,10 +335,13 @@
     Tipp: Tab im Vordergrund lassen (Chrome drosselt Hintergrund-Tabs). Für beste Erkennung ein
     nahes Mikrofon nutzen – das eingebaute Laptop-Mikro hört den Dozenten nur als „Fernfeld".<br>
     <a href="auswertung.html" style="color:#4fd1c5;">📊 Zur Auswertung</a> ·
+    <a href="countdown.html" style="color:#4fd1c5;">⏳ Countdown</a> ·
     <a href="wal-party.html" style="color:#4fd1c5;">🐳 Party-Modus</a>
   </footer>
 
   <script src="tracker.js"></script>
+  <script src="diagnose.js"></script>
+  <script src="minigames.js"></script>
   <script>
     (function () {
       "use strict";
@@ -558,6 +561,7 @@
         r.maxAlternatives = 5;    // mehrere Deutungen -> bessere Trefferquote
 
         r.onstart = function () {
+          AnderStelleDiag.recStart();
           running = true;
           lastActivityAt = Date.now();
           setStatus("listening", "hört zu …");
@@ -585,6 +589,7 @@
               if (delta > 0) addHits(delta);
               else if (delta < 0) removeHits(-delta);
               utteranceCounted = 0;  // Äußerung abgeschlossen
+              AnderStelleDiag.final(result, alt.n);
 
               // Zentrales Log: bestätigte Treffer dieser Äußerung festhalten.
               if (alt.n > 0) AnderStelleTracker.logHits(alt.n, "auto", SOURCE, sessionId);
@@ -607,6 +612,7 @@
         };
 
         r.onerror = function (event) {
+          AnderStelleDiag.error(event.error);
           switch (event.error) {
             case "no-speech":
               // harmlos: gerade nichts gehört. onend startet neu.
@@ -639,6 +645,7 @@
         };
 
         r.onend = function () {
+          AnderStelleDiag.recEnd(userStopped);
           running = false;
           // Zwischenstand der (abgebrochenen) Session verwerfen.
           lastFinalIndex = -1;
@@ -673,9 +680,10 @@
             setStatus("listening", "hört zu …");
           } catch (e) {
             // Session noch nicht sauber beendet – später erneut versuchen.
-            scheduleRestart(500);
+            AnderStelleDiag.note("Neustart klappte nicht sofort – neuer Versuch");
+            scheduleRestart(400);
           }
-        }, delay || 300);
+        }, delay || 120);  // kurz halten: jede Millisekunde hier ist eine Hörlücke
       }
 
       function start() {
@@ -778,6 +786,8 @@
       });
 
       // --- Init ---
+      AnderStelleDiag.init({ matchRe: MATCH_RE });
+      MiniGames.mount({ watchCount: true });
       renderCount();
       renderLive("");
       updateToggle();

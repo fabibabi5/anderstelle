@@ -86,6 +86,88 @@ Ohne eigene Medien feiern große Wal-Emoji 🐳🐋 mit. Videos werden stummgesc
 abgespielt (für zuverlässiges Autoplay); den Partysound liefert das Airhorn, das
 sich oben per „🔊 Sound" an-/ausschalten lässt.
 
+## 🔍 Diagnose-Modus
+
+In `index.html` und `wal-party.html` öffnet der Button **„🔍 Diagnose"** (unten links)
+ein Panel, das zeigt, was die Spracherkennung tatsächlich versteht:
+
+- jeder erkannte Satz inkl. Alternativen und Konfidenz – Treffer ✅ grün,
+  **Beinahe-Treffer** 🤔 (z. B. „an dieser Stelle", „Schelle") gelb
+- Start/Ende der Erkennung, Fehler (`network`, `no-speech` …) und **Hörlücken**
+  (Zeit, in der nichts erkannt werden konnte)
+- ein Mikrofon-Pegel (nur solange das Panel offen ist)
+- **⬇ Export** als `.txt`, um das Log z. B. weiterzugeben
+
+Das Log lebt nur im Arbeitsspeicher und wird nicht gespeichert.
+
+**Mac-Tipp:** Während Chrome das Mikrofon nutzt, im Kontrollzentrum unter
+„Mikrofonmodus" **Standard** oder **Breites Spektrum** wählen – „Sprachisolierung"
+filtert entfernte Sprecher (den Dozenten!) heraus.
+
+## ⏳ Countdown: `countdown.html`
+
+Countdown bis zum Vorlesungsende (Beginn/Ende einstellen oder „90 min ab jetzt").
+Dabei passiert ständig irgendein Unsinn:
+
+- **jede volle Minute** eine (mehr oder weniger) motivierende Durchsage
+- **Schnapszahl-Sekunden** (:11, :22, :33, :44, :55), **Echo** (23:23),
+  **Palindrome** (12:21), **Treppen** (12:34), **Raketenstarts** (43:21)
+- **Minuten-Themen**, die eine ganze Minute dauern – z. B. 99 🎈, 69 😎, 67 🫴🫳,
+  42 🐋🪴, 23 🔺, 13 🐈‍⬛, 11 ✨, 7 🕵️, 1 🚨
+- **Restsekunden-Memes**: …67, …69, 3141 (π), 1337 (Matrix), 777 (Jackpot),
+  666, 404, 300 (Sparta), 100 💯 …
+- **Uhrzeit-Gags** (11:11, 12:34, 13:37, volle Stunde) und **Fortschritts-Meilensteine**
+  (Halbzeit, 67 %, 69 %, 99 %-Windows-Ladebalken)
+- **Zufalls-Gags** alle 15–40 s: Fake-Windows-Update, „Dozent.exe reagiert nicht",
+  Comic Sans, Enten-Parade, Latein-/Binär-Modus, Wal-Fakten …
+- die letzten 10 Sekunden riesig, danach Party und **Überziehungs-Zähler**
+- liest den „an der Stelle"-Zähler mit und feiert jeden neuen Treffer
+- **Meme-Fortschrittsbalken** (`memebar.js`), absichtlich nervig: wechselt alle 2,5 Min.
+  (oder per Klick) das Kostüm – Windows-XP-Kopieren, YouTube mit nicht überspringbarer
+  Werbung, Boss-Kampf gegen den Dozenten, Pokémon-Kampf, Akku „Geduld", Download mit
+  Brieftauben-Geschwindigkeit, Mac-Regenbogenrad, Spiel-Ladebildschirm mit Tipps. Dazu
+  Streiche alle 20–50 s: läuft rückwärts, springt auf 99 % („War nur Spaß 🙃"), friert ein
+  („Keine Rückmeldung"), 9 Nachkommastellen, Prozent in Bananen, Turbo-Modus … und eine
+  Restzeit-Anzeige, die meistens lügt. Die echte Prozentzahl steht oben bei „Geschafft".
+- **Brainrot** (`brainrot.js`): Italian-Brainrot-Parade (Tralalero Tralala, Tung Tung Tung
+  Sahur, Bombardiro Crocodilo, Ballerina Cappuccina …), TikTok-Untertitel Wort für Wort mit
+  **Subway-Surfers-Fenster** als „Fokus-Hilfe" (per Button dauerhaft an), **Aura-Zähler**
+  (+1000 Aura für Augenkontakt mit der Uhr, +6767 bei „an der Stelle"), **Brainrot-Pegel**
+  (gesund → cooked → Ohio-Final-Boss → komplett verrottet), Fanum Tax auf den Timer,
+  Skibidi, Mewing-Pause, Aura-Farming-Boot, Chill Guy, NPC-Modus und ein Schalter
+  **„🧠 Brainrot-Sprache"**, der die Seite übersetzt („bro wann ist die Lecture endlich over 💀").
+- **🎮 Minigames** (`minigames.js`, Button unten rechts, alles lautlos):
+  - **🎯 Dozenten-Bingo** – 4×4-Karte pro Tag; die „an der Stelle"-Felder (1×, 3×, 5×) hakt
+    die Spracherkennung automatisch ab
+  - **🐳 Flappy Wal** – durch Folien-Stapel tauchen (Klick/Leertaste/↑)
+  - **🔨 Whack-a-Wal** – 30 s Wale hauen, nicht den Dozenten 👨‍🏫 oder die Klausur 📝
+  - **⚡ Six-Seven-Reaktion** – nur bei „67" klicken, Fallen wie 66/76/69 kosten Strafzeit
+  - **🧠 Brainrot-Memory** – Italian-Brainrot-Paare finden
+  - **🔮 Orakel** – tippen, wie oft noch „an der Stelle" kommt; Auswertung bei Countdown-Ende
+
+  - **🐳 Wal-2048** – 🦐 → 🐟 → … → 🐋 → 🐳 zusammenschieben (Pfeile/WASD/Wischen)
+  - **📝 Klausur-Minesweeper** – 9×9, 10 Klausuren; Rechtsklick oder 🚩-Modus für Fahnen
+  - **🦐 Wal-Snake** – Krill fressen, länger werden (Pfeile/WASD/Wischen)
+  - **⌨️ Mitschreib-Simulator** – fallende Vorlesungswörter abtippen, 3 Leben
+  - **🗿 Aura-Clicker** – Idle-Game mit Upgrades, läuft auch bei geschlossener Seite weiter
+  - **❌ Tic-Tac-Toe vs. Dozent** – fast unschlagbar, außer er ist abgelenkt
+
+  Rekorde werden im Browser gespeichert, gute Ergebnisse geben Aura. Alle 6–10 Minuten
+  kommt eine Minigame-Challenge rein.
+
+  **So kommst du zu den Spielen:** Button **„🎮 Minigames"** unten rechts – in `countdown.html`,
+  `wal-party.html` und `index.html`. Direkt-Link: Adresse mit `#minigames` am Ende, z. B.
+  `http://localhost:8000/countdown.html#minigames`.
+
+- **🐋 Noch mehr Wale** (`wale.js`): dauerhaftes Wal-Aquarium hinter dem Timer (mit Fontänen
+  und Babys, in den letzten 10 Minuten hektischer), ein Wal folgt der Maus, Klick ins Leere
+  lässt einen Wal springen, Zähler „Wale gesichtet". Dazu Banner-Wal mit Botschaften,
+  Blauwal-Sonnenfinsternis, Wal-Sprung über den Timer, Wal-Schule in V-Formation,
+  Wal-Gesang, Wal gegen Krake, „Wal-o-clock" und jede Minute eine Fontäne aus dem Timer.
+
+Ton ist standardmäßig aus. Zum Ausprobieren im Zeitraffer:
+`countdown.html?demo=4030&speed=10` (Ende in 4030 s, 10-fache Geschwindigkeit).
+
 ## 📊 Zentrales Treffer-Log & Auswertung
 
 Alle Versionen schreiben in **ein** gemeinsames, dauerhaftes Log im Browser
