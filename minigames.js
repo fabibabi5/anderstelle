@@ -6,7 +6,7 @@
  *   MiniGames.hit()                          „an der Stelle“ gehört (Bingo + Orakel)
  *
  * Spiele: Dozenten-Bingo, Flappy Wal, Whack-a-Wal, Six-Seven-Reaktion, Brainrot-Memory,
- * Wal-2048, Klausur-Minesweeper, Wal-Snake, Mitschreib-Simulator, Aura-Clicker,
+ * Wal-2048, Klausur-Minesweeper, Wal-Snake, Wal-Subway-Surfer, Mitschreib-Simulator, Aura-Clicker,
  * Tic-Tac-Toe gegen den Dozenten, Orakel.
  *
  * Den „an der Stelle“-Zähler (localStorage "anderstelle.count") liest das Modul auf jeder Seite selbst mit.
@@ -743,6 +743,7 @@
         ctx.fillStyle = "rgba(255,255,255,.03)";
         for (var x = 0; x < C; x++) for (var y = 0; y < R; y++) if ((x + y) % 2) ctx.fillRect(x * S, y * S, S, S);
         ctx.font = (S - 4) + "px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillStyle = "#fff";   // Emojis übernehmen die Deckkraft von fillStyle – sonst ist der Krill fast unsichtbar
         ctx.fillText("🦐", food.x * S + S / 2, food.y * S + S / 2 + 1);
         if (gold) ctx.fillText("🐟", gold.p.x * S + S / 2, gold.p.y * S + S / 2 + 1);
         for (var i = snake.length - 1; i > 0; i--) {
@@ -751,7 +752,7 @@
         }
         ctx.save(); ctx.translate(snake[0].x * S + S / 2, snake[0].y * S + S / 2 + 1);
         if (dir.x > 0) ctx.scale(-1, 1);
-        ctx.font = S + "px sans-serif"; ctx.fillText("🐳", 0, 0); ctx.restore();
+        ctx.font = S + "px sans-serif"; ctx.fillStyle = "#fff"; ctx.fillText("🐳", 0, 0); ctx.restore();
       }
       function key(e) { var d = keyDir(e); if (d) { e.preventDefault(); setDir(d); } }
       document.addEventListener("keydown", key);
@@ -759,6 +760,172 @@
       cv.addEventListener("click", function () { if (state !== "run") go(); });
       reset();
       return function () { clearTimeout(timer); document.removeEventListener("keydown", key); };
+    }
+  };
+
+  // ================= 13) Wal-Subway-Surfer =================
+  // Pseudo-3D: Objekte haben eine Position „at“ (Meter) auf der Strecke, z = at − dist ist der Abstand zum Wal.
+  GAMES.surf = {
+    icon: "🚇", name: "Wal-Subway-Surfer", desc: "Flucht vor dem Dozenten durch die U-Bahn-Gleise. ←/→ Spur wechseln, ↑ springen, ↓ abtauchen, Krill sammeln. Wischen geht auch.",
+    bestText: function () { return best("surf") != null ? "Rekord: " + de(best("surf")) + " Punkte" : ""; },
+    start: function (root) {
+      var W = 640, H = 360, HOR = 92, BASE = 300, D = 10, ZMAX = 130, LANE = 150;
+      var info = el("div", "mg-info", "<span>Punkte: <b>0</b></span><span>🦐 <i>0</i></span><span>Rekord: " + de(best("surf") || 0) + "</span>");
+      var cv = el("canvas", "mg-canvas"); cv.width = W; cv.height = H;
+      var msg = el("div", "mg-msg", "Klick, Taste oder Wischen zum Starten · ←/→ Spur · ↑/Leertaste springen · ↓ abtauchen");
+      root.appendChild(info); root.appendChild(cv); root.appendChild(msg);
+      var ctx = cv.getContext("2d"), state = "ready", raf = null, last = 0, overAt = 0, swipedAt = 0, caught = null;
+      var lane, px, jy, jv, duck, objs, dist, speed, krill, nextRow, magnet, t;
+      var CRASH = { train: "🚃 Gegen den Mensa-Express geschwommen", low: "📝 Über einen Klausurstapel gestolpert", high: "📽️ Gegen den Beamer geknallt" };
+
+      function reset() { lane = 0; px = 0; jy = 0; jv = 0; duck = 0; objs = []; dist = 0; speed = 16; krill = 0; nextRow = 45; magnet = 0; t = 0; caught = null; hud(); draw(); }
+      function score() { return Math.floor(dist) + krill * 25; }
+      function hud() { info.querySelector("b").textContent = de(score()); info.querySelector("i").textContent = krill; }
+      function begin() {
+        if (state === "run" || (state === "over" && performance.now() - overAt < 600)) return;   // Panik-Eingaben nach dem Crash ignorieren
+        reset(); state = "run"; msg.textContent = ""; last = performance.now(); raf = requestAnimationFrame(loop);
+      }
+      function act(d) {
+        if (state !== "run") return begin();
+        if (d === "left" && lane > -1) lane--;
+        else if (d === "right" && lane < 1) lane++;
+        else if (d === "up" && jy === 0) { jv = 390; duck = 0; }
+        else if (d === "down") { duck = 0.7; if (jy > 0) jv = -650; }   // in der Luft: schnell wieder runter
+      }
+      // Eine Reihe Hindernisse; mindestens eine Spur bleibt ohne Zug, die freie Spur bekommt Krill
+      function spawnRow() {
+        var at = nextRow, lanes = shuffle([-1, 0, 1]), n = Math.random() < 0.45 ? 1 : 2, trains = 0, maxLen = 1;
+        if (speed > 24 && Math.random() < 0.25) n = 3;
+        for (var i = 0; i < n; i++) {
+          var type = rnd(["low", "high", "train", "train"]);
+          if (type === "train" && trains >= Math.min(2, n - 1 || 1)) type = rnd(["low", "high"]);
+          if (type === "train") trains++;
+          var len = type === "train" ? rint(8, 22) : 1;
+          maxLen = Math.max(maxLen, len);
+          objs.push({ lane: lanes[i], at: at, type: type, len: len });
+        }
+        if (n < 3) {
+          var free = lanes[n];
+          if (Math.random() < 0.07) objs.push({ lane: free, at: at + 6, type: "coffee", len: 0 });
+          else for (var k = 0; k < 5; k++) objs.push({ lane: free, at: at + 2 + k * 3, type: "krill", len: 0 });
+        }
+        nextRow = at + maxLen + Math.max(15, 30 - speed * 0.35);
+      }
+      function loop(now) {
+        var dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+        speed = Math.min(42, 16 + t * 0.35);
+        var step = speed * dt; dist += step;
+        px += (lane - px) * Math.min(1, dt * 14);
+        if (jy > 0 || jv > 0) { jy += jv * dt; jv -= 1000 * dt; if (jy <= 0) { jy = 0; jv = 0; } }
+        if (duck > 0) duck -= dt;
+        if (magnet > 0) magnet -= dt;
+        while (nextRow < dist + ZMAX) spawnRow();
+        var pl = Math.round(px), crash = null;
+        objs = objs.filter(function (ob) {
+          var z = ob.at - dist, zOld = z + step;
+          if (ob.type === "krill" || ob.type === "coffee") {
+            var take = (zOld > 0 && z <= 0 && ob.lane === pl) || (ob.type === "krill" && magnet > 0 && z <= 6);
+            if (take) { if (ob.type === "krill") krill++; else magnet = 8; return false; }
+            return z > -3;
+          }
+          if (ob.lane === pl && !crash) {
+            if (ob.type === "train") { if (z <= 0.5 && z + ob.len > -0.5) crash = ob; }
+            else if (zOld > 0 && z <= 0 && (ob.type === "low" ? jy < 30 : duck <= 0)) crash = ob;   // genau beim Durchqueren prüfen
+          }
+          return z + ob.len > -4;
+        });
+        hud(); 
+        if (crash) return over(crash);
+        draw();
+        raf = requestAnimationFrame(loop);
+      }
+      function over(ob) {
+        state = "over"; overAt = performance.now(); caught = ob; cancelAnimationFrame(raf);
+        draw();
+        var sc = score(), rec = record("surf", sc);
+        msg.textContent = CRASH[ob.type] + " – 👨‍🏫 hat dich erwischt! " + (rec && sc ? "🏆 Neuer Rekord: " : "") + de(sc) + " Punkte · Klick/Taste für neuen Versuch";
+        info.lastChild.textContent = "Rekord: " + de(best("surf"));
+        if (sc >= 1500) reward(sc, "Wal-Subway-Surfer: " + de(sc) + " Punkte");
+      }
+      function P(x, z) { var p = D / (D + z); return { x: W / 2 + x * LANE * p, y: HOR + (BASE - HOR) * p, p: p }; }
+      function emoji(ch, x, y, size) {
+        ctx.fillStyle = "#fff"; ctx.font = Math.round(size) + "px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(ch, x, y);
+      }
+      function quad(a, b, c, d2, col) {
+        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d2.x, d2.y); ctx.closePath(); ctx.fill();
+      }
+      function draw() {
+        var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "#04466a"); g.addColorStop(1, "#021b2e");
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        // Tunnel-Lichter am Horizont
+        ctx.fillStyle = "rgba(255,209,102,.5)";
+        for (var li = 0; li < 7; li++) ctx.fillRect(40 + li * 95 - ((dist * 8) % 95), 30, 30, 4);
+        // Gleisbett
+        quad(P(-1.6, -4), P(1.6, -4), P(1.6, ZMAX), P(-1.6, ZMAX), "#0b3a52");
+        ctx.strokeStyle = "rgba(255,255,255,.12)"; ctx.lineWidth = 2;
+        for (var s = 0; s < ZMAX; s += 4) {   // Schwellen, laufen mit der Strecke mit
+          var zz = s - (dist % 4); if (zz < -4) continue;
+          var a = P(-1.5, zz), b = P(1.5, zz);
+          ctx.lineWidth = 1 + 3 * a.p; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+        ctx.strokeStyle = "rgba(159,211,224,.55)";
+        [-1.5, -0.5, 0.5, 1.5].forEach(function (x) {
+          var a = P(x, -4), b = P(x, ZMAX); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        });
+        // Objekte von hinten nach vorne
+        objs.slice().sort(function (u, v) { return v.at - u.at; }).forEach(function (ob) {
+          var z = ob.at - dist;
+          if (z > ZMAX || z + ob.len < -3) return;
+          var f = P(ob.lane, Math.max(z, -2));
+          if (ob.type === "train") {
+            var zb = z + ob.len, hgt = 110;
+            var fl = P(ob.lane - 0.42, Math.max(z, -2)), fr = P(ob.lane + 0.42, Math.max(z, -2)), bl = P(ob.lane - 0.42, zb), br = P(ob.lane + 0.42, zb);
+            quad({ x: fl.x, y: fl.y - hgt * fl.p }, { x: fr.x, y: fr.y - hgt * fr.p }, { x: br.x, y: br.y - hgt * br.p }, { x: bl.x, y: bl.y - hgt * bl.p }, "#e05a4a");
+            ctx.fillStyle = "#b8392b"; ctx.fillRect(fl.x, fl.y - hgt * fl.p, fr.x - fl.x, hgt * fl.p);
+            ctx.fillStyle = "#cfe9f2"; ctx.fillRect(fl.x + 10 * fl.p, fl.y - hgt * fl.p * 0.85, (fr.x - fl.x) - 20 * fl.p, hgt * fl.p * 0.3);
+            emoji("🚃", f.x, f.y - hgt * f.p * 0.32, 40 * f.p);
+          } else if (ob.type === "low") {
+            var w = 0.8 * LANE * f.p, h = 30 * f.p;
+            ctx.fillStyle = "#f4f4e8"; ctx.fillRect(f.x - w / 2, f.y - h, w, h);
+            ctx.fillStyle = "#ff6b6b"; ctx.fillRect(f.x - w / 2, f.y - h, w, 4 * f.p);
+            emoji("📝", f.x, f.y - h - 14 * f.p, 28 * f.p);
+          } else if (ob.type === "high") {
+            var w2 = 0.86 * LANE * f.p, top = 92 * f.p, bar = 22 * f.p;
+            ctx.fillStyle = "#6b7c86"; ctx.fillRect(f.x - w2 / 2, f.y - top, 5 * f.p, top); ctx.fillRect(f.x + w2 / 2 - 5 * f.p, f.y - top, 5 * f.p, top);
+            ctx.fillStyle = "#ffd166"; ctx.fillRect(f.x - w2 / 2, f.y - top, w2, bar);
+            emoji("📽️", f.x, f.y - top + bar / 2, 20 * f.p);
+          } else {
+            var bob = Math.sin((ob.at + t * 6)) * 4 * f.p;
+            emoji(ob.type === "krill" ? "🦐" : "☕", f.x, f.y - 22 * f.p + bob, (ob.type === "krill" ? 26 : 32) * f.p);
+          }
+        });
+        // Wal mit Schatten
+        var me = P(px, 0);
+        ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.beginPath(); ctx.ellipse(me.x, me.y - 2, 30 - jy * 0.08, 8, 0, 0, 6.29); ctx.fill();
+        ctx.save(); ctx.translate(me.x, me.y - 28 - jy);
+        if (duck > 0 && jy === 0) { ctx.translate(0, 14); ctx.scale(1.2, 0.5); }
+        emoji("🐳", 0, 0, 56); ctx.restore();
+        if (magnet > 0) { ctx.textAlign = "left"; emoji("☕", 26, 26, 22); ctx.fillStyle = "#ffd166"; ctx.font = "800 15px sans-serif"; ctx.textAlign = "left"; ctx.fillText("Krill-Magnet " + Math.ceil(magnet) + " s", 42, 27); }
+        // Der Dozent jagt hinterher: am Anfang und beim Erwischen sichtbar
+        if (state !== "run" || t < 2.5) {
+          var dz = P(caught ? px : px - 0.5, caught ? -1.3 : -1.8 - Math.max(0, t - 1.5));
+          emoji("👨‍🏫", dz.x, dz.y - 30, 48);
+          if (caught) { ctx.fillStyle = "#fff"; ctx.font = "800 16px sans-serif"; ctx.textAlign = "center"; ctx.fillText("„Wo wollen Sie denn hin?“", dz.x, dz.y - 66); }
+        }
+      }
+      function key(e) {
+        var d = e.code === "Space" ? "up" : keyDir(e);
+        if (d) { e.preventDefault(); act(d); }
+      }
+      document.addEventListener("keydown", key);
+      onSwipe(cv, function (d) { swipedAt = performance.now(); act(d); });
+      cv.addEventListener("click", function () {
+        if (performance.now() - swipedAt < 300) return;   // nach einer Wischgeste feuert der Browser noch einen Klick
+        act("up");
+      });
+      reset();
+      return function () { cancelAnimationFrame(raf); document.removeEventListener("keydown", key); };
     }
   };
 
@@ -1031,7 +1198,7 @@
     ["react", "Bist du schneller als <b>400 ms</b> bei Six-Seven?"], ["memory", "Memory in <b>unter 10 Zügen</b>?"],
     ["bingo", "Schon ein <b>Bingo</b>? Check deine Karte!"], ["oracle", "Das <b>Orakel</b> wartet auf deinen Tipp 🔮"],
     ["w2048", "Schaffst du den <b>🐳 Blauwal</b> bei Wal-2048?"], ["mines", "Klausur-Minesweeper in <b>unter 60 s</b>?"],
-    ["snake", "Wird dein Wal <b>20 Krill</b> lang?"], ["typing", "Schreibst du <b>25 Wörter</b> mit, bevor die Tafel gewischt wird?"],
+    ["snake", "Wird dein Wal <b>20 Krill</b> lang?"], ["surf", "Schaffst du <b>2.000 Punkte</b> bei Wal-Subway-Surfer?"], ["typing", "Schreibst du <b>25 Wörter</b> mit, bevor die Tafel gewischt wird?"],
     ["clicker", "Deine <b>Aura</b> wartet aufs Abholen 🗿"], ["ttt", "Besiegst du den <b>Dozenten</b> im Tic-Tac-Toe?"]
   ];
   function buildChallenge() {

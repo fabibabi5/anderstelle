@@ -149,6 +149,8 @@ Dabei passiert ständig irgendein Unsinn:
   - **🐳 Wal-2048** – 🦐 → 🐟 → … → 🐋 → 🐳 zusammenschieben (Pfeile/WASD/Wischen)
   - **📝 Klausur-Minesweeper** – 9×9, 10 Klausuren; Rechtsklick oder 🚩-Modus für Fahnen
   - **🦐 Wal-Snake** – Krill fressen, länger werden (Pfeile/WASD/Wischen)
+  - **🚇 Wal-Subway-Surfer** – vor dem Dozenten durch die Gleise fliehen: Zügen ausweichen, über Klausurstapel
+    springen, unter Beamern abtauchen, Krill sammeln, ☕ = Krill-Magnet (Pfeile/WASD/Leertaste/Wischen)
   - **⌨️ Mitschreib-Simulator** – fallende Vorlesungswörter abtippen, 3 Leben
   - **🗿 Aura-Clicker** – Idle-Game mit Upgrades, läuft auch bei geschlossener Seite weiter
   - **❌ Tic-Tac-Toe vs. Dozent** – fast unschlagbar, außer er ist abgelenkt
