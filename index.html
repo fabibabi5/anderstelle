@@ -541,6 +541,12 @@
         }
         return { text: bestText.trim(), n: bestN };
       }
+// Hänger-Wächter: wird gesprochen, aber es kommen keine Ergebnisse mehr -> Erkennung neu starten
+      var watchdog = AnderStelleWatchdog.create({
+        getLevel: AnderStelleDiag.recentDb,
+        note: AnderStelleDiag.note,
+        restart: function () { if (recognition) { try { recognition.abort(); } catch (e) {} } }   // onend startet neu
+      });
       counter = AnderStelleCounter.create({ bestAlternative: bestAlternative, countMatches: countMatches });
 
       function updateRate() {
@@ -564,6 +570,7 @@
 
         r.onstart = function () {
           AnderStelleDiag.recStart();
+          watchdog.started();
           running = true;
           lastActivityAt = Date.now();
           setStatus("listening", "hört zu …");
@@ -571,6 +578,7 @@
 
         r.onresult = function (event) {
           lastActivityAt = Date.now();
+          watchdog.result();
 
           // Treffer pro Satzteil zählen – live sofort, und nie wieder abziehen:
           // Leise angehängte „an der Stelle“ streicht Google im Endergebnis oft
@@ -632,6 +640,7 @@
 
         r.onend = function () {
           AnderStelleDiag.recEnd(userStopped);
+          watchdog.ended();
           running = false;
           // Zähler der beendeten Session abschließen (gezählte Treffer bleiben, Verschwundene melden).
           counter.flush().forEach(function (k) { AnderStelleDiag.kept(k.text, k.finalText, k.n); });

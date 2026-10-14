@@ -142,6 +142,11 @@ Zusätzlich, jeweils mit automatischer Prüfung, ob dein Chrome das kann:
   leise Satzenden an, bevor Chrome das Audio bekommt. Funktioniert nur, wenn Chrome der
   Erkennung eine eigene Tonspur erlaubt; sonst läuft alles wie bisher mit dem normalen Mikro.
   Das Panel zeigt an, was aktiv ist.
+- **Hänger-Wächter:** Chrome bleibt manchmal auf „hört zu“, liefert aber nichts mehr
+  (beobachtet vor allem mit Verstärker). Wird laut Mikrofonpegel gesprochen und kommt 8 s
+  lang kein Ergebnis – oder 30 s lang überhaupt keins –, startet die Erkennung neu
+  (im Protokoll: „⚠ Erkennung hängt …“). Hängt es mit Verstärker zweimal innerhalb von
+  3 Minuten, schaltet sich der Verstärker automatisch ab.
 
 **Mac-Tipp:** Während Chrome das Mikrofon nutzt, im Kontrollzentrum unter
 „Mikrofonmodus" **Standard** oder **Breites Spektrum** wählen – „Sprachisolierung"

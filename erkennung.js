@@ -133,6 +133,8 @@
 
     setLevel: function (v) {
       Boost.level = v;
+      Boost.trackDisabled = null;                 // neuer Versuch nach manuellem Umschalten
+      if (Boost.trackSupport === false && v > 0) Boost.trackSupport = null;
       try { localStorage.setItem(LEVEL_KEY, String(v)); } catch (e) {}
       if (Boost._graph) Boost._graph.gain.gain.value = v || 1;
       // Damit die Änderung sofort greift, startet die Seite die Erkennung kurz neu (onRestartNeeded)
@@ -243,8 +245,17 @@
       return Boost.level > 0 ? Boost.prepare().then(function (t) { if (Boost.onRestartNeeded) Boost.onRestartNeeded(); return t; }) : Promise.resolve(null);
     },
 
+    // Verstärker-Tonspur für diese Sitzung abschalten (z. B. weil die Erkennung damit hängt)
+    disableTrack: function (reason) {
+      Boost.trackSupport = false;
+      Boost.trackDisabled = reason || "Erkennung hing damit";
+      Boost.release();
+      note("Verstärker automatisch abgeschaltet (" + Boost.trackDisabled + ") – weiter mit normalem Mikro.");
+    },
+
     status: function () {
       var amp = !(Boost.level > 0) ? "aus" :
+                Boost.trackDisabled ? "automatisch abgeschaltet – " + Boost.trackDisabled + " (normales Mikro)" :
                 Boost.trackSupport === false ? "nicht unterstützt (normales Mikro)" :
                 Boost.trackSupport === true ? (Boost.track() ? "aktiv, " + Boost.level + "×" : "wartet auf Mikro …") :
                 "wird beim nächsten (Neu-)Start der Erkennung geprüft";
@@ -255,4 +266,56 @@
   };
 
   global.AnderStelleBoost = Boost;
+
+  // ======================= Hänger-Wächter =======================
+  // Chrome bleibt manchmal „hört zu“, liefert aber keine Ergebnisse mehr (beobachtet vor allem
+  // mit Verstärker-Tonspur). Der Wächter vergleicht den Mikrofonpegel mit dem Grundrauschen:
+  // Wird gesprochen, aber es kommt zu lange kein Ergebnis, wird die Erkennung neu gestartet.
+  function Watchdog(o) {
+    this.o = o;            // { getLevel(): dB|null, restart(), note(text) }
+    this.samples = [];     // [t, dB] der letzten 60 s
+    this.stalls = [];
+    this.runningSince = 0;
+    this.lastResult = 0;
+    this.speechMs = 0;     // gesprochene Zeit seit dem letzten Ergebnis
+    var self = this;
+    this.timer = setInterval(function () { self.tick(); }, 500);
+  }
+  Watchdog.prototype.started = function () { this.runningSince = this.lastResult = Date.now(); this.speechMs = 0; };
+  Watchdog.prototype.ended = function () { this.runningSince = 0; };
+  Watchdog.prototype.result = function () { this.lastResult = Date.now(); this.speechMs = 0; };
+  Watchdog.prototype.floor = function () {
+    if (this.samples.length < 20) return null;
+    var v = this.samples.map(function (x) { return x[1]; }).sort(function (a, b) { return a - b; });
+    return v[Math.floor(v.length * 0.15)];   // 15 %-Perzentil ≈ Grundrauschen
+  };
+  Watchdog.prototype.tick = function () {
+    var now = Date.now(), cfg = global.AnderStelleWatchdog.DEFAULTS, db = this.o.getLevel ? this.o.getLevel() : null;
+    if (db != null) this.samples.push([now, db]);
+    while (this.samples.length && now - this.samples[0][0] > 60000) this.samples.shift();
+    if (!this.runningSince) return;
+    var floor = this.floor();
+    if (db != null && floor != null && db > floor + cfg.speechAboveFloorDb && db > -62) this.speechMs += 500;
+    var quiet = now - this.lastResult;
+    var stalled = (this.speechMs >= cfg.speechStallMs && quiet >= cfg.speechStallMs) ||
+                  (quiet >= cfg.maxQuietMs && now - this.runningSince >= cfg.maxQuietMs);
+    if (!stalled) return;
+    var why = this.speechMs >= cfg.speechStallMs
+      ? "seit " + Math.round(quiet / 1000) + " s kein Ergebnis, obwohl gesprochen wird"
+      : "seit " + Math.round(quiet / 1000) + " s gar kein Ergebnis";
+    this.o.note && this.o.note("⚠ Erkennung hängt (" + why + ") → Neustart");
+    this.stalls.push(now);
+    this.stalls = this.stalls.filter(function (t) { return now - t < cfg.trackFallbackWindowMs; });
+    this.runningSince = 0; this.speechMs = 0;
+    // Hängt es mit Verstärker wiederholt, Verstärker abschalten
+    if (Boost.level > 0 && Boost.trackSupport === true && this.stalls.length >= 2) {
+      Boost.disableTrack(this.stalls.length + " Hänger in " + Math.round(cfg.trackFallbackWindowMs / 60000) + " Min.");
+      this.stalls = [];
+    }
+    try { this.o.restart(); } catch (e) {}
+  };
+  global.AnderStelleWatchdog = {
+    DEFAULTS: { speechStallMs: 8000, maxQuietMs: 30000, speechAboveFloorDb: 10, trackFallbackWindowMs: 180000 },
+    create: function (o) { return new Watchdog(o); }
+  };
 })(window);

@@ -243,13 +243,18 @@
       return { text: bestText.trim(), n: bestN };
     }
     var counter = AnderStelleCounter.create({ bestAlternative: bestAlternative, countMatches: countMatches });
+    var watchdog = AnderStelleWatchdog.create({   // hängt Chrome still, Erkennung neu starten
+      getLevel: D.recentDb, note: D.note,
+      restart: function () { if (recognition) { try { recognition.abort(); } catch (e) {} } }
+    });
 
     function create() {
       var r = new SR();
       r.lang = "de-DE"; r.continuous = true; r.interimResults = true; r.maxAlternatives = 5;
       B.applyPhrases(r);
-      r.onstart = function () { running = true; D.recStart(); setStatus("on", "hört zu …"); };
+      r.onstart = function () { running = true; D.recStart(); watchdog.started(); setStatus("on", "hört zu …"); };
       r.onresult = function (event) {
+        watchdog.result();
         var res;
         try { res = counter.process(event); }
         catch (err) { D.jsError(err, "Zähler"); renderInterim(rawInterim(event)); return; }
@@ -271,6 +276,7 @@
       };
       r.onend = function () {
         running = false;
+        watchdog.ended();
         D.recEnd(!listening);
         counter.flush().forEach(function (k) { D.kept(k.text, k.finalText, k.n); });
         renderInterim("");
