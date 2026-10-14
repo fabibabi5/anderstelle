@@ -363,10 +363,12 @@
     },
     note: function (text) { push({ k: "note", x: text }); },
     jsError: function (err, where) { jsError(err, where || "?"); },
-    added: function (n) {
+    // src = "vosk": Treffer, den nur Vosk hatte (Kombi-Erkennung) – zählt mit, aber getrennt von Chromes Erkennungen
+    added: function (n, src) {
       if (!session) newSession();
       session.cnt += n;
-      (session.adds = session.adds || []).push([Date.now(), n]);   // Zeitpunkte für den Detektor-Vergleich
+      var key = src === "vosk" ? "vadds" : "adds";
+      (session[key] = session[key] || []).push([Date.now(), n]);   // Zeitpunkte für den Detektor-Vergleich
       dirty = true; notify(null);
     },
     // Ergebnis des zweiten Detektors (Vosk): rec = "kws" | "free", conf 0..1, n = Treffer, thr = Schwelle

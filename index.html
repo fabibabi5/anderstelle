@@ -343,6 +343,8 @@
   <script src="erkennung.js"></script>
   <script src="diagnose.js"></script>
   <script src="minigames.js"></script>
+  <script src="vosk-client.js"></script>
+  <script src="kombi.js"></script>
   <script>
     (function () {
       "use strict";
@@ -541,7 +543,17 @@
         }
         return { text: bestText.trim(), n: bestN };
       }
-// Hänger-Wächter: wird gesprochen, aber es kommen keine Ergebnisse mehr -> Erkennung neu starten
+      // Kombi-Erkennung: Chrome + optional Vosk (lokaler Server, siehe kombi.js); dieselbe Stelle zählt nur einmal
+      var kombi = AnderStelleKombi.create({
+        diag: AnderStelleDiag,
+        onVoskHits: function (n) {
+          addHits(n); renderCount();
+          AnderStelleDiag.added(n, "vosk");
+          AnderStelleTracker.logHits(n, "auto", SOURCE, sessionId);
+        }
+      });
+
+      // Hänger-Wächter: wird gesprochen, aber es kommen keine Ergebnisse mehr -> Erkennung neu starten
       var watchdog = AnderStelleWatchdog.create({
         getLevel: AnderStelleDiag.recentDb,
         note: AnderStelleDiag.note,
@@ -592,9 +604,12 @@
           res.live.forEach(function (h) { AnderStelleDiag.live(h.text, h.n); });
           res.kept.forEach(function (k) { AnderStelleDiag.kept(k.text, k.finalText, k.n); });
           if (res.added > 0) {
-            addHits(res.added);
             AnderStelleDiag.added(res.added);
-            AnderStelleTracker.logHits(res.added, "auto", SOURCE, sessionId);
+            var neu = kombi.fromChrome(res.added);   // schon von Vosk gezählt? dann nicht doppelt
+            if (neu > 0) {
+              addHits(neu);
+              AnderStelleTracker.logHits(neu, "auto", SOURCE, sessionId);
+            }
           }
 
           renderLive(res.interimText.trim());
@@ -682,6 +697,7 @@
 
       function start() {
         if (listening) return;
+        kombi.start();
         if (!recognition) recognition = createRecognition();
         userStopped = false;
         listening = true;
@@ -707,6 +723,7 @@
       function stop() {
         userStopped = true;
         listening = false;
+        kombi.stop();
         if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
         if (recognition) {
           try { recognition.stop(); } catch (e) {}

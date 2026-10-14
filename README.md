@@ -124,6 +124,23 @@ Hinweis: Nicht gleichzeitig mit der Wal-Party erkennen lassen – Chrome erlaubt
 Erkennung auf einmal. Die Wal-Party-Sitzung lässt sich aber live in der Diagnose-Seite
 mitverfolgen.
 
+### 🧩 Kombi-Erkennung: Chrome + Vosk (Wal-Party und Zähler)
+
+Auf den Zähl-Seiten (`index.html`, `wal-party.html`) zählen **Chrome und – optional – Vosk
+gemeinsam**. Grundlage ist die Auswertung im Diagnose-Labor (10 Min. Vorlesung, 15 echte
+„an der Stelle“): Chrome allein 10/15 erkannt, Chrome **oder** Vosk ≥ 75 % 13/15 bei
+gleich vielen Fehlalarmen.
+
+- Chrome zählt wie bisher; **Vosk zählt zusätzlich ab 75 % Sicherheit**.
+- Erkennen beide dieselbe Stelle innerhalb von **8 s**, zählt sie **nur einmal** (egal, wer zuerst war).
+- **Vosk ist optional:** Läuft `./vosk/start.sh` nicht, zählt Chrome allein; sobald der Server
+  läuft, verbindet sich die Seite automatisch.
+- **Anzeige unten links** („🧩 Vosk …“): grau = aus/bereit, gelb = verbindet, grün = verbunden,
+  rot = nicht erreichbar; „+N“ = Treffer, die nur Vosk hatte. **Klick** schaltet Vosk an/aus
+  (wird gemerkt).
+- Vosk nutzt die Grammatik, die zuletzt im Vosk-Test der Diagnose-Seite eingestellt war.
+- Im Diagnose-Protokoll steht bei jedem Vosk-Beitrag „🧩 Vosk zählt …“.
+
 ### 🧪 Vosk-Test: zweiter Detektor (nur auf der Diagnose-Seite)
 
 Vosk ist eine Offline-Spracherkennung, die man auf **feste Phrasen beschränken** kann
