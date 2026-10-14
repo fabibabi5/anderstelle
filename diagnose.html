@@ -115,7 +115,12 @@
     table.vk { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.88rem; }
     table.vk th, table.vk td { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: left; }
     table.vk td.y { color: var(--ok); font-weight: 800; } table.vk td.n { color: var(--muted); } table.vk td.m { color: var(--warn); }
-    .vk-scroll { max-height: 260px; overflow-y: auto; }
+    .vk-scroll { max-height: 300px; overflow-y: auto; }
+    table.vk button { padding: 2px 9px; font-size: 0.8rem; border-radius: 7px; }
+    table.vk button.yes.on { background: var(--ok); color: #032; } table.vk button.no.on { background: var(--err); color: #fff; }
+    table.vk tr.t-yes td:first-child { box-shadow: inset 4px 0 0 var(--ok); } table.vk tr.t-no td:first-child { box-shadow: inset 4px 0 0 var(--err); }
+    table.vk td.fp { color: var(--err); font-weight: 800; } table.vk td.fn { color: var(--warn); font-weight: 800; }
+    #vkEval th, #vkEval td { text-align: center; } #vkEval th:first-child, #vkEval td:first-child { text-align: left; }
     details.howto { margin-top: 10px; background: rgba(0,0,0,0.2); border-radius: 10px; padding: 8px 12px; }
     details.howto code { background: rgba(255,255,255,0.1); padding: 1px 6px; border-radius: 5px; }
     #log li.vosk { background: rgba(255,159,67,0.16); } #log li.vosk-low { background: rgba(255,159,67,0.06); color: var(--muted); }
@@ -148,10 +153,11 @@
         <div id="count" title="auf dieser Seite gezählt">0</div>
       </div>
       <div class="flagbtns">
-        <button data-f="missed">😶 Verpasst <kbd>V</kbd><small>gesagt, aber nicht gezählt (+1)</small></button>
-        <button data-f="false">🚫 Falsch erkannt <kbd>F</kbd><small>gezählt, aber nicht gesagt (−1)</small></button>
-        <button data-f="double">✌️ Doppelt <kbd>D</kbd><small>einmal gesagt, zweimal gezählt (−1)</small></button>
+        <button data-f="missed">😶 Gesagt, nicht gezählt <kbd>V</kbd><small>es wurde „an der Stelle“ gesagt (+1) – gilt für alle Detektoren</small></button>
+        <button data-f="false">🚫 Chrome falsch <kbd>F</kbd><small>der Zähler oben (Chrome) hat gezählt, aber es wurde nicht gesagt (−1)</small></button>
+        <button data-f="double">✌️ Chrome doppelt <kbd>D</kbd><small>einmal gesagt, der Zähler oben hat zweimal gezählt (−1)</small></button>
       </div>
+      <p class="small muted" style="margin:6px 0 0">Der Zähler oben zählt nur <b>Chrome</b>. Ob <b>Vosk</b> richtig lag, bewertest du unten im Vosk-Test Stelle für Stelle („✓ gesagt“ / „✗ nicht gesagt“) – oder im Vosk-Prüfstand mit Testsätzen bzw. einer Aufnahme.</p>
       <div class="row" style="margin-top:8px">
         <input type="text" id="note" placeholder="Notiz zur nächsten Markierung (optional), z. B. „sehr leise, Satzende“" />
       </div>
@@ -211,7 +217,7 @@ an dieser stelle
           </div>
           <div class="row small" style="margin-top:8px">
             <label>Sicherheits-Schwelle: <b id="vkThrV">55 %</b> <input type="range" id="vkThr" min="20" max="95" step="5" value="55" /></label>
-            <label>Vergleichsfenster: <b id="vkWinV">4 s</b> <input type="range" id="vkWin" min="2" max="10" step="1" value="4" /></label>
+            <label>Vergleichsfenster: <b id="vkWinV">8 s</b> <input type="range" id="vkWin" min="2" max="15" step="1" value="8" /></label>
           </div>
           <div class="row" style="margin-top:8px"><button id="vkApply">Übernehmen</button></div>
         </div>
@@ -220,11 +226,18 @@ an dieser stelle
           <div class="vk-live"><b>Frei</b><span id="vkFreeLive" class="muted">–</span></div>
           <div class="vk-counts" id="vkCounts"></div>
           <p class="small" id="vkSummary" style="margin:10px 0 0"></p>
+          <table class="vk" id="vkEval"></table>
+          <p class="small muted" style="margin:8px 0 0">Jede Zeile ist eine <b>Stelle</b>, an der mindestens ein Detektor angeschlagen hat (oder du „gesagt“ markiert hast). Bewerte sie mit <b>✓</b> (wurde gesagt) oder <b>✗</b> (nicht gesagt) – daraus ergibt sich für jeden Detektor, was richtig, verpasst oder ein Fehlalarm war.</p>
           <div class="vk-scroll">
-            <table class="vk"><thead><tr><th>Zeit</th><th>Chrome</th><th>Vosk</th><th>Vosk frei</th><th>Markiert</th></tr></thead><tbody id="vkTable"></tbody></table>
+            <table class="vk"><thead><tr><th>Zeit</th><th>Chrome</th><th>Vosk</th><th>Vosk frei</th><th>Markiert</th><th>Wurde gesagt?</th></tr></thead><tbody id="vkTable"></tbody></table>
           </div>
         </div>
       </div>
+    </section>
+
+    <section class="card full">
+      <h2>🎯 Vosk-Prüfstand <small>gezielte Tests, bei denen feststeht, was richtig ist – nutzt die Einstellungen aus dem Vosk-Test</small></h2>
+      <div id="pruefstand"></div>
     </section>
 
     <!-- ================= Sitzungen ================= -->
@@ -288,6 +301,7 @@ an dieser stelle
   <script src="erkennung.js"></script>
   <script src="diagnose.js"></script>
   <script src="vosk-client.js"></script>
+  <script src="vosk-pruefstand.js"></script>
   <script>
   (function () {
     "use strict";
@@ -725,7 +739,8 @@ an dieser stelle
     window.addEventListener("resize", function () { drawTimeline(viewed()); });
 
     // ================= Vosk-Test =================
-    var vosk = null, vkThr = 0.55, vkWin = 4000;
+    var vosk = null, vkThr = 0.55, vkWin = 8000;
+    var voskUrl = new URLSearchParams(location.search).get("vosk") || undefined;   // anderer Port? diagnose.html?vosk=ws://127.0.0.1:2701
     try { var saved = JSON.parse(localStorage.getItem("anderstelle.vosk.cfg") || "null");
       if (saved) { $("vkGrammar").value = saved.grammar.join("\n"); $("vkFree").checked = saved.free; $("vkRaw").checked = saved.raw;
                    $("vkThr").value = Math.round(saved.thr * 100); $("vkWin").value = saved.win / 1000; } } catch (e) {}
@@ -734,7 +749,8 @@ an dieser stelle
       vkThr = $("vkThr").value / 100; vkWin = $("vkWin").value * 1000;
       $("vkThrV").textContent = $("vkThr").value + " %"; $("vkWinV").textContent = $("vkWin").value + " s";
     }
-    $("vkThr").addEventListener("input", function () { vkReadSliders(); renderVosk(); });
+    var thrListeners = [];
+    $("vkThr").addEventListener("input", function () { vkReadSliders(); renderVosk(); thrListeners.forEach(function (f) { f(); }); });
     $("vkWin").addEventListener("input", function () { vkReadSliders(); renderVosk(); });
     vkReadSliders();
     function vkSave() { try { localStorage.setItem("anderstelle.vosk.cfg", JSON.stringify({ grammar: vkGrammar(), free: $("vkFree").checked, raw: $("vkRaw").checked, thr: vkThr, win: vkWin })); } catch (e) {} }
@@ -747,16 +763,7 @@ an dieser stelle
       if (state === "getrennt") $("vkHowto").open = true;
       if (state === "verbunden") D.note("Vosk verbunden (" + info + ")");
     }
-    // Treffer in einem Vosk-Ergebnis finden: „an/in/am der/die/dem stelle(n)“, Sicherheit = schwächstes Wort
-    var PHRASE = /^(an|in|am) (der|die|dem) stellen?$/;
-    function kwsHits(words) {
-      var hits = [];
-      for (var i = 0; i + 2 < words.length; i++) {
-        var w = words.slice(i, i + 3), txt = w.map(function (x) { return x.word; }).join(" ");
-        if (PHRASE.test(txt)) { hits.push(Math.min.apply(null, w.map(function (x) { return x.conf == null ? 1 : x.conf; }))); i += 2; }
-      }
-      return hits;
-    }
+    function kwsHits(words) { return AnderStelleVosk.findHits(words).map(function (h) { return h.conf; }); }
     function onVosk(msg) {
       if (msg.type === "error") { D.note("Vosk-Fehler: " + msg.message); $("vkInfo").textContent = "Fehler: " + msg.message; return; }
       if (msg.type === "partial") {
@@ -779,9 +786,7 @@ an dieser stelle
       }
     }
     function voskStart() {
-      // anderer Port? diagnose.html?vosk=ws://127.0.0.1:2701
-      var url = new URLSearchParams(location.search).get("vosk") || undefined;
-      if (!vosk) vosk = AnderStelleVosk.create({ url: url, grammar: vkGrammar(), free: $("vkFree").checked, raw: $("vkRaw").checked, onStatus: vkStatus, onMessage: onVosk });
+      if (!vosk) vosk = AnderStelleVosk.create({ url: voskUrl, grammar: vkGrammar(), free: $("vkFree").checked, raw: $("vkRaw").checked, onStatus: vkStatus, onMessage: onVosk });
       vosk.start(); vkStatus(vosk.state, "");
     }
     function voskStop() { if (vosk) vosk.stop(); vkStatus("aus", ""); }
@@ -816,15 +821,44 @@ an dieser stelle
       if (wrong.length) txt += " · " + wrong.length + " Markierung(en) falsch/doppelt – Vosk war dort " + wrong.filter(function (g) { return g.kws; }).length + "× beteiligt.";
       if (!groups.length) txt = "Noch keine Treffer von Chrome oder Vosk in dieser Sitzung.";
       $("vkSummary").innerHTML = txt;
-      function cell(v, extra) { return v ? '<td class="y">✓' + (extra || "") + "</td>" : '<td class="n">–</td>'; }
-      $("vkTable").innerHTML = groups.slice(-60).reverse().map(function (g) {
-        var vk = g.kws ? cell(1, g.conf != null ? " " + Math.round(g.conf * 100) + " %" : "") :
+
+      // Auswertung pro Detektor (nur bewertete Stellen)
+      var ev = D.evaluate(groups), pc = function (v) { return v == null ? "–" : Math.round(v * 100) + " %"; };
+      var rows = [["chrome", "Chrome"], ["kws", "Vosk (sicher)"], ["kwsAll", "Vosk (inkl. unsicher)"], ["free", "Vosk frei"], ["combined", "Chrome + Vosk"]];
+      var judged = groups.filter(function (g) { return g.truth != null; }).length, open_ = groups.length - judged;
+      $("vkEval").innerHTML = "<thead><tr><th>Detektor</th><th>richtig</th><th>verpasst</th><th>Fehlalarm</th><th>Trefferquote</th><th>Genauigkeit</th></tr></thead><tbody>" +
+        rows.map(function (r) { var x = ev[r[0]];
+          return "<tr><td>" + r[1] + '</td><td class="y">' + x.tp + "</td><td" + (x.fn ? ' class="fn"' : "") + ">" + x.fn + "</td><td" + (x.fp ? ' class="fp"' : "") + ">" + x.fp +
+                 "</td><td>" + pc(x.recall) + "</td><td>" + pc(x.precision) + "</td></tr>"; }).join("") +
+        '<tr><td colspan="6" class="n" style="text-align:left">' + judged + " Stelle(n) bewertet" + (open_ ? " · <b>" + open_ + "</b> noch offen" : "") + "</td></tr></tbody>";
+
+      function cell(v, extra) { return v ? '<td class="y">✓' + (v > 1 ? "×" + v : "") + (extra || "") + "</td>" : '<td class="n">–</td>'; }
+      $("vkTable").innerHTML = groups.slice(-80).reverse().map(function (g) {
+        var vk = g.kws ? cell(g.kws, g.conf != null ? " " + Math.round(g.conf * 100) + " %" : "") :
                  g.kwsLow ? '<td class="m">? ' + Math.round((g.conf || 0) * 100) + " %</td>" : cell(0);
         var fl = g.flag ? "<td>" + D.FLAGS[g.flag].icon + " " + D.FLAGS[g.flag].label + "</td>" : '<td class="n"></td>';
-        return "<tr><td>" + D.clock(g.t) + "</td>" + cell(g.chrome) + vk + cell(g.free) + fl + "</tr>";
-      }).join("") || '<tr><td colspan="5" class="n">–</td></tr>';
+        var bt = '<td><button class="yes' + (g.truth === true ? " on" : "") + '" data-vt="' + g.t + '" data-vv="1" title="Hier wurde „an der Stelle“ gesagt">✓</button> ' +
+                 '<button class="no' + (g.truth === false ? " on" : "") + '" data-vt="' + g.t + '" data-vv="0" title="Hier wurde es nicht gesagt">✗</button></td>';
+        return '<tr class="' + (g.truth === true ? "t-yes" : g.truth === false ? "t-no" : "") + '"><td>' + D.clock(g.t) + "</td>" + cell(g.chrome) + vk + cell(g.free) + fl + bt + "</tr>";
+      }).join("") || '<tr><td colspan="6" class="n">–</td></tr>';
     }
-    D.subscribe(function (entry) { if (!entry || entry.k === "vosk" || entry.k === "flag") renderVosk(); });
+    $("vkTable").addEventListener("click", function (e) {
+      var t = e.target.getAttribute && e.target.getAttribute("data-vt");
+      if (!t) return;
+      var s = viewed();
+      if (s !== D.session()) { alert("Bewerten geht nur in der laufenden Sitzung dieser Seite."); return; }
+      D.verdict(+t, e.target.getAttribute("data-vv") === "1");
+      renderVosk();
+    });
+    D.subscribe(function (entry) { if (!entry || entry.k === "vosk" || entry.k === "flag" || entry.k === "verdict") renderVosk(); });
+
+    AnderStelleVoskPruefstand.mount($("pruefstand"), {
+      D: D,
+      cfg: function () { return { url: voskUrl, grammar: vkGrammar(), free: $("vkFree").checked, thr: vkThr }; },
+      ensureLiveVosk: function () { if (!vosk || !vosk.running) voskStart(); return vosk; },
+      chromeRunning: function () { return listening && running; },
+      onThresholdChange: function (fn) { thrListeners.push(fn); }
+    });
 
     renderRx(); renderCount(); renderAll(); renderVosk();
   })();

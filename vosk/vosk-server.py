@@ -17,10 +17,12 @@ Optionen: --port 2700  --model klein|gross|<Pfad>  --host 127.0.0.1
 Protokoll (JSON-Textnachrichten, Audio als Binärnachrichten):
   Browser -> Server  {"type":"config","sampleRate":16000,"grammar":["an der stelle","[unk]"],"free":true}
                      danach Binär: Int16 little-endian PCM
-                     {"type":"reset"}  – Erkenner zurücksetzen
+                     {"type":"reset"}  – Erkenner zurücksetzen (Zeitbasis wieder 0)
+                     {"type":"flush"}  – Ende einer Aufnahme: letzte Ergebnisse ausgeben, dann {"type":"flushed"}
   Server -> Browser  {"type":"hello","model":...}
                      {"type":"partial","rec":"kws"|"free","text":...}
                      {"type":"final","rec":"kws"|"free","text":...,"words":[{"word","conf","start","end"}]}
+                     {"type":"ack","sec":...}   – so viele Sekunden Audio sind verarbeitet (alle ~2 s)
                      {"type":"error","message":...}
 """
 import argparse
@@ -59,6 +61,7 @@ class Session:
         self.kws = None
         self.free = None
         self.last_partial = {}
+        self.bytes = 0
 
     def configure(self, cfg):
         self.rate = int(cfg.get("sampleRate", self.rate))
@@ -78,6 +81,18 @@ class Session:
             self.free = KaldiRecognizer(self.model, self.rate)
             self.free.SetWords(True)
         self.last_partial = {}
+
+    def flush(self):
+        """Ende einer Aufnahme: was noch im Erkenner steckt, als Endergebnis ausgeben."""
+        out = []
+        for name, rec in (("kws", self.kws), ("free", self.free)):
+            if rec is None:
+                continue
+            res = json.loads(rec.FinalResult())
+            if res.get("text"):
+                out.append({"type": "final", "rec": name, "text": res["text"], "words": res.get("result", [])})
+        self.last_partial = {}
+        return out
 
     def feed(self, data):
         """Audio verarbeiten (läuft in einem Hilfs-Thread) und Nachrichten zurückgeben."""
@@ -111,6 +126,12 @@ async def handler(ws, path=None, model=None, model_name=""):
             if isinstance(msg, (bytes, bytearray)):
                 for m in await loop.run_in_executor(None, sess.feed, bytes(msg)):
                     await ws.send(json.dumps(m, ensure_ascii=False))
+                # Fortschritt melden (für den Aufnahme-Test)
+                before = sess.bytes
+                sess.bytes += len(msg)
+                step = sess.rate * 2 * 2
+                if sess.bytes // step != before // step:
+                    await ws.send(json.dumps({"type": "ack", "sec": round(sess.bytes / (sess.rate * 2), 1)}))
                 continue
             try:
                 cfg = json.loads(msg)
@@ -124,6 +145,10 @@ async def handler(ws, path=None, model=None, model_name=""):
                     await ws.send(json.dumps({"type": "error", "message": "Konfiguration: %s" % e}))
             elif cfg.get("type") == "reset":
                 sess.reset()
+            elif cfg.get("type") == "flush":
+                for m in await loop.run_in_executor(None, sess.flush):
+                    await ws.send(json.dumps(m, ensure_ascii=False))
+                await ws.send(json.dumps({"type": "flushed", "sec": round(sess.bytes / (sess.rate * 2), 1)}))
     except websockets.ConnectionClosed:
         pass
     finally:

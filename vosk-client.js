@@ -11,6 +11,9 @@
  *   });
  *   v.start(); v.stop(); v.configure({ grammar, free }); v.setRaw(bool)
  *
+ * Ohne Mikrofon (für Aufnahmen):  create({ mic: false, ... }); v.start();
+ *   v.whenConnected().then(...); v.reset(); v.sendPcm(int16, onProgress).then(...); v.flush()
+ *
  * Audio: eigenes Mikrofon-Abgreifen, Umrechnung auf 16 kHz Int16 mono, alle ~250 ms
  * ein Paket an den Server. Ist der Server (noch) nicht da, wird alle 3–10 s neu verbunden.
  */
@@ -44,7 +47,39 @@
     if (this.running) return Promise.resolve();
     this.running = true;
     this.connect();
-    return this.openMic();
+    return this.o.mic === false ? Promise.resolve() : this.openMic();
+  };
+
+  // ---------- ohne Mikrofon: fertige Audiodaten schicken ----------
+  Vosk.prototype.whenConnected = function (timeoutMs) {
+    var self = this, t0 = Date.now();
+    return new Promise(function (resolve, reject) {
+      (function check() {
+        if (self.ws && self.ws.readyState === 1 && self.state === "verbunden") return resolve();
+        if (Date.now() - t0 > (timeoutMs || 8000)) return reject(new Error("Vosk-Server nicht erreichbar – läuft ./vosk/start.sh?"));
+        setTimeout(check, 150);
+      })();
+    });
+  };
+  Vosk.prototype.sendJson = function (obj) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(obj)); };
+  Vosk.prototype.reset = function () { this.sendJson(this.cfg); };   // neue Konfiguration = frische Erkenner, Zeit ab 0
+  Vosk.prototype.flush = function () { this.sendJson({ type: "flush" }); };
+  // int16: komplette Aufnahme (16 kHz mono). Sendet in 1-s-Stücken und wartet, wenn der Puffer voll ist.
+  Vosk.prototype.sendPcm = function (int16, onProgress) {
+    var self = this, CH = TARGET_RATE, pos = 0;
+    return new Promise(function (resolve, reject) {
+      (function next() {
+        if (!self.ws || self.ws.readyState !== 1) return reject(new Error("Verbindung zum Vosk-Server verloren"));
+        while (pos < int16.length && self.ws.bufferedAmount < 2e6) {
+          var part = int16.subarray(pos, Math.min(int16.length, pos + CH));
+          self.ws.send(part.slice().buffer);
+          pos += CH;
+        }
+        if (onProgress) onProgress(Math.min(1, pos / int16.length));
+        if (pos >= int16.length) return resolve();
+        setTimeout(next, 30);
+      })();
+    });
   };
 
   Vosk.prototype.stop = function () {
@@ -168,5 +203,23 @@
     if (this.ws && this.ws.readyState === 1) { this.ws.send(out.buffer); this.sentBytes += out.byteLength; }
   };
 
-  global.AnderStelleVosk = { create: function (o) { return new Vosk(o); }, TARGET_RATE: TARGET_RATE };
+  // Treffer in einem Vosk-Ergebnis: „an/in/am der/die/dem stelle(n)“ als drei Wörter hintereinander
+  // (oder zusammengeschrieben „anderstelle“). Sicherheit = schwächstes der Wörter, Zeiten in Sekunden.
+  var PHRASE = /^(an|in|am) (der|die|dem) stellen?$/, ONE = /^(an|in|am)(der|die|dem)stellen?$/;
+  function findHits(words) {
+    var hits = [];
+    words = words || [];
+    for (var i = 0; i < words.length; i++) {
+      var w3 = words.slice(i, i + 3);
+      if (w3.length === 3 && PHRASE.test(w3.map(function (x) { return x.word; }).join(" "))) {
+        hits.push({ conf: Math.min.apply(null, w3.map(function (x) { return x.conf == null ? 1 : x.conf; })), start: w3[0].start, end: w3[2].end });
+        i += 2;
+      } else if (ONE.test(words[i].word)) {
+        hits.push({ conf: words[i].conf == null ? 1 : words[i].conf, start: words[i].start, end: words[i].end });
+      }
+    }
+    return hits;
+  }
+
+  global.AnderStelleVosk = { create: function (o) { return new Vosk(o); }, TARGET_RATE: TARGET_RATE, findHits: findHits };
 })(window);

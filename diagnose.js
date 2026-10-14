@@ -25,9 +25,11 @@
   // Wörter, die auf eine verpasste Phrase hindeuten können
   var NEAR_RE = /st[eä]l|schell|stähl|an dieser|andere[nr]? st|an de[rnm] |stehle/i;
   var FLAG_INFO = {
-    missed: { icon: "😶", label: "Verpasst", desc: "„an der Stelle“ wurde gesagt, aber nicht gezählt", delta: +1 },
-    false:  { icon: "🚫", label: "Falsch erkannt", desc: "gezählt, obwohl es nicht gesagt wurde", delta: -1 },
-    double: { icon: "✌️", label: "Doppelt gezählt", desc: "einmal gesagt, zweimal gezählt", delta: -1 }
+    // „Verpasst“ beschreibt, was passiert ist (es wurde gesagt) – gilt für alle Detektoren.
+    // „Falsch“ und „Doppelt“ beziehen sich auf den Zähler der Seite, und der zählt Chrome.
+    missed: { icon: "😶", label: "Verpasst (wurde gesagt)", desc: "„an der Stelle“ wurde gesagt, aber nicht gezählt", delta: +1 },
+    false:  { icon: "🚫", label: "Chrome falsch gezählt", desc: "Chrome hat gezählt, obwohl es nicht gesagt wurde", delta: -1 },
+    double: { icon: "✌️", label: "Chrome doppelt gezählt", desc: "einmal gesagt, von Chrome zweimal gezählt", delta: -1 }
   };
 
   var opts = {}, matchRe = null, session = null, subs = [], dirty = false;
@@ -169,6 +171,8 @@
       if (e.k === "flag") ev.push({ t: e.t, d: "flag", f: e.f });
     });
     ev.sort(function (a, b) { return a.t - b.t; });
+    var verdicts = {};   // neueste Bewertung pro Stelle gewinnt
+    s.e.forEach(function (e) { if (e.k === "verdict") verdicts[e.g] = e.v; });
     var groups = [];
     ev.forEach(function (x) {
       // passende offene Gruppe: nah genug und dieser Detektor dort noch nicht vertreten
@@ -180,7 +184,42 @@
       if (x.d === "flag") g.flag = x.f;
       else { g[x.d]++; if (x.c != null) g.conf = Math.max(g.conf || 0, x.c); }
     });
+    // Bewertungen der nächstgelegenen Stelle zuordnen (die Zeit der Stelle kann sich mit dem Fenster leicht verschieben)
+    Object.keys(verdicts).forEach(function (k) {
+      var t = +k, best = null, bd = 1e12;
+      groups.forEach(function (g) { var d = Math.abs(g.t - t); if (d < bd) { bd = d; best = g; } });
+      if (best && bd <= windowMs) best.verdict = verdicts[k];
+    });
+    groups.forEach(function (g) {
+      // Wahrheit: ausdrückliche Bewertung > Markierung (verpasst/doppelt = gesagt, falsch = nicht gesagt)
+      g.truth = g.verdict != null ? !!g.verdict : g.flag === "missed" || g.flag === "double" ? true : g.flag === "false" ? false : null;
+    });
     return groups;
+  }
+
+  // Bewertung pro Detektor aus den Stellen: richtig / verpasst / Fehlalarm
+  function evaluateDetectors(groups) {
+    var defs = {
+      chrome: function (g) { return g.chrome; },
+      kws: function (g) { return g.kws; },
+      kwsAll: function (g) { return g.kws + g.kwsLow; },
+      free: function (g) { return g.free; },
+      combined: function (g) { return Math.max(g.chrome, g.kws); }
+    };
+    var out = {};
+    Object.keys(defs).forEach(function (k) {
+      var r = { tp: 0, fn: 0, fp: 0, unjudged: 0 };
+      groups.forEach(function (g) {
+        var n = defs[k](g);
+        if (g.truth === true) { if (n) { r.tp++; r.fp += n - 1; } else r.fn++; }   // n − 1: doppelt gezählt
+        else if (g.truth === false) r.fp += n;
+        else if (n) r.unjudged++;
+      });
+      r.recall = r.tp + r.fn ? r.tp / (r.tp + r.fn) : null;
+      r.precision = r.tp + r.fp ? r.tp / (r.tp + r.fp) : null;
+      out[k] = r;
+    });
+    return out;
   }
 
   // ---------------- Darstellung eines Eintrags (Panel + Seite) ----------------
@@ -224,6 +263,9 @@
         cls = ok ? "vosk" : "vosk-low";
         p = "[" + lbl.toUpperCase() + (ok ? " TREFFER" : e.n ? " unsicher" : "") + "] " + e.x + (e.c != null ? " (" + Math.round(e.c * 100) + " %)" : "");
         break;
+      case "verdict":
+        h = "🧑‍⚖️ Bewertet: Stelle um " + clock(e.g) + " – " + (e.v ? "<b>wurde gesagt</b>" : "<b>nicht gesagt</b>");
+        cls = "sys"; p = "[BEWERTUNG] Stelle " + clock(e.g) + ": " + (e.v ? "gesagt" : "nicht gesagt"); break;
       case "flag":
         var f = FLAG_INFO[e.f] || { icon: "🚩", label: e.f };
         h = "<b>" + f.icon + " MARKIERT: " + f.label + "</b>" + (e.d != null ? " <small>(Pegel " + Math.round(e.d) + " dB)</small>" : "") +
@@ -345,6 +387,8 @@
       push(e);
       if (a[0] && a[0][0]) { transcript.push([Date.now(), a[0][0]]); while (transcript.length > 40) transcript.shift(); }
     },
+    // Bewertung einer Stelle in der Vergleichstabelle: wurde dort wirklich „an der Stelle“ gesagt?
+    verdict: function (t, yes) { push({ k: "verdict", g: t, v: yes ? 1 : 0 }); },
     // Manuelle Markierung: kind = "missed" | "false" | "double"
     flag: function (kind, noteText) {
       var cut = Date.now() - 30000;
@@ -382,7 +426,7 @@
       localStorage.setItem(STORE, JSON.stringify(st));
       return obj;
     },
-    compare: compareDetectors,
+    compare: compareDetectors, evaluate: evaluateDetectors,
     computeStats: computeStats, renderEntry: renderEntry, highlight: highlight, countMatches: countMatches, clock: clock, esc: esc,
     levelNow: function () { return levelNow; }, recentDb: recentDb, micLabel: function () { return meter && meter.label; },
     startSampler: startSampler, stopSampler: stopSampler,
@@ -485,8 +529,8 @@
       '<button data-a="export">⬇ TXT</button><button data-a="json">⬇ JSON</button>' +
       '<button data-a="new" title="Aktuelle Sitzung abschließen und eine neue beginnen">Neue Sitzung</button><button data-a="close">✕</button></header>' +
       '<div class="flags">' +
-      '<button data-f="missed">😶 Verpasst (+1)</button><button data-f="false">🚫 Falsch (−1)</button><button data-f="double">✌️ Doppelt (−1)</button>' +
-      '<small>Markieren, wenn die Erkennung danebenlag – korrigiert den Zähler und merkt sich, was davor gehört wurde. Tasten bei offenem Panel: V / F / D.</small></div>' +
+      '<button data-f="missed">😶 Verpasst (+1)</button><button data-f="false">🚫 Falsch gezählt (−1)</button><button data-f="double">✌️ Doppelt gezählt (−1)</button>' +
+      '<small>Verpasst = es wurde gesagt, aber nicht gezählt. Falsch/Doppelt = der Zähler hat zu viel gezählt. Korrigiert den Zähler und merkt sich, was davor gehört wurde. Tasten bei offenem Panel: V / F / D.</small></div>' +
       '<div class="level">Mikrofon-Pegel <span class="lv-text">(startet beim Öffnen …)</span>' +
       '<div class="meter"><i></i><s></s></div></div>' +
       '<div class="stats"></div>' +

@@ -149,6 +149,29 @@ Im Bereich **„🧪 Vosk-Test“**:
 
 Anderer Port: `diagnose.html?vosk=ws://127.0.0.1:2701` und `./vosk/start.sh --port 2701`.
 
+**Was gilt wofür?** Der große Zähler auf der Diagnose-Seite zählt nur **Chrome**. Deshalb:
+
+- **😶 Gesagt, nicht gezählt (V)** – hier wurde „an der Stelle“ gesagt (gilt für alle Detektoren)
+- **🚫 Chrome falsch (F)** / **✌️ Chrome doppelt (D)** – beziehen sich auf den Chrome-Zähler
+- **Vosk** bewertest du in der Vergleichstabelle: jede Zeile ist eine Stelle, an der ein Detektor
+  angeschlagen hat → **✓ wurde gesagt** / **✗ nicht gesagt**. Daraus berechnet die Seite pro
+  Detektor (Chrome, Vosk sicher, Vosk inkl. unsicher, Vosk frei, Chrome + Vosk): richtig,
+  verpasst, Fehlalarm, Trefferquote und Genauigkeit.
+
+### 🎯 Vosk-Prüfstand (Diagnose-Seite)
+
+Gezielte Tests, bei denen feststeht, was richtig ist:
+
+- **🗣️ Vorlese-Test:** 12 Testsätze vorlesen – mit „an der Stelle“, mit Fallen („an dieser
+  Stelle“, „an der Tafel“, „Stellwand“, „an anderer Stelle“) und Varianten („leise ans
+  Satzende hängen“, „schnell genuschelt“, „2 m entfernt“). Nach jedem Satz **Weiter**
+  (Leertaste); ausgewertet wird pro Satz Soll gegen Ist für Vosk, Vosk frei und Chrome
+  (falls der Live-Test läuft).
+- **🎧 Aufnahme-Test:** Audiodatei hochladen (mp3/m4a/wav, am besten ≤ 20 Min.). Vosk wertet
+  sie schneller als Echtzeit aus; jeden Treffer per ▶ anhören und mit ✓/✗ bewerten, fehlende
+  Stellen beim Anhören mit „＋ hier wurde es gesagt“ ergänzen. Ideal, um Grammatik, Schwelle
+  und Modell (`--model gross`) an derselben Aufnahme zu vergleichen. Die Datei bleibt lokal.
+
 ### Erkennung: was live gehört wurde, bleibt gezählt
 
 Leise angehängte „… an der Stelle" erkennt Chrome oft im **Live-Zwischenstand**, streicht
