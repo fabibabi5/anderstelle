@@ -144,6 +144,7 @@ Dabei passiert ständig irgendein Unsinn:
   - **⚡ Six-Seven-Reaktion** – nur bei „67" klicken, Fallen wie 66/76/69 kosten Strafzeit
   - **🧠 Brainrot-Memory** – Italian-Brainrot-Paare finden
   - **🔮 Orakel** – tippen, wie oft noch „an der Stelle" kommt; Auswertung bei Countdown-Ende
+    (funktioniert auf allen Seiten, sobald im Countdown ein Vorlesungsende eingestellt ist)
 
   - **🐳 Wal-2048** – 🦐 → 🐟 → … → 🐋 → 🐳 zusammenschieben (Pfeile/WASD/Wischen)
   - **📝 Klausur-Minesweeper** – 9×9, 10 Klausuren; Rechtsklick oder 🚩-Modus für Fahnen
@@ -153,7 +154,8 @@ Dabei passiert ständig irgendein Unsinn:
   - **❌ Tic-Tac-Toe vs. Dozent** – fast unschlagbar, außer er ist abgelenkt
 
   Rekorde werden im Browser gespeichert, gute Ergebnisse geben Aura. Alle 6–10 Minuten
-  kommt eine Minigame-Challenge rein.
+  kommt eine Minigame-Challenge rein. Mehrere Tabs (z. B. Zähler + Countdown) dürfen gleichzeitig
+  offen sein: Rekorde bleiben erhalten und jedes „an der Stelle“ zählt nur einmal.
 
   **So kommst du zu den Spielen:** Button **„🎮 Minigames"** unten rechts – in `countdown.html`,
   `wal-party.html` und `index.html`. Direkt-Link: Adresse mit `#minigames` am Ende, z. B.
